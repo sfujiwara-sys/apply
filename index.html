@@ -345,7 +345,7 @@ function render(){
 }
 
 const getSet=()=>{const s={};["_cl","_dr","mc","wl","hol","_mk"].forEach(k=>s[k]=$(k).value);s.rules=JSON.stringify(Object.fromEntries(RULES.map(r=>[r.id,$("r_"+r.id).checked])));return s};
-const putSet=v=>{if(!v)return;["_cl","_dr","mc","wl","hol","_mk"].forEach(k=>{if(v[k])$(k).value=v[k]});try{const r=JSON.parse(v.rules||"{}");RULES.forEach(x=>{if(r[x.id]!=null)$("r_"+x.id).checked=!!r[x.id]})}catch(e){}
+const putSet=v=>{if(!v)return;["_cl","_dr","mc","wl","hol","_mk"].forEach(k=>{if(v[k])$(k).value=v[k]});try{const r=JSON.parse(v.rules\vert{}\vert{}"{}");RULES.forEach(x=>{if(r[x.id]!=null)$("r_"+x.id).checked=!!r[x.id]})}catch(e){}
  buildClRows($("_cl").value);buildDrRows($("_dr").value);renderMkr($("_mk").value);
 };
 
@@ -375,7 +375,8 @@ const hashPw=s=>{let h1=0xdeadbeef,h2=0x41c6ce57;for(let i=0;i<s.length;i++){con
 
 (function(){
  const a=document.getElementById("auth"),ap=document.getElementById("app");
- if(sessionStorage.getItem("shiftApp:session")==="1"){a.remove();ap.classList.remove("app-hidden");return}
+ // ★修正: ログイン済みセッション時にも initApp() を呼ぶように変更
+ if(sessionStorage.getItem("shiftApp:session")==="1"){a.remove();ap.classList.remove("app-hidden");initApp();return}
  const AK="shiftApp:passHash",saved=localStorage.getItem(AK),first=!saved;
  $("authMsg").textContent=first?"初回利用です。管理者用のパスコードを設定してください（4文字以上）。":"このアプリは管理者専用です。パスコードを入力してください。";
  $("authBtn").textContent=first?"パスコードを設定して利用開始":"ログイン";
@@ -402,6 +403,12 @@ function initApp(){
   buildOffRows($("_av").value,"tblAv");
   renderMkr($("_mk").value);
   
+  // ★修正: 追加ボタンのクリックイベントを設定
+  $("addCl").onclick=()=>{document.querySelector("#tblCl tbody").appendChild(clRow(["","","","",""]))};
+  $("addDr").onclick=()=>{document.querySelector("#tblDr tbody").appendChild(drRow(["","常勤","","","Y",""]))};
+  $("addOff").onclick=()=>{document.querySelector("#tblOff tbody").appendChild(offRow("tblOff",["",""]))};
+  $("addAv").onclick=()=>{document.querySelector("#tblAv tbody").appendChild(offRow("tblAv",["",""]))};
+
   document.querySelectorAll(".side-nav button").forEach(btn=>{
     btn.addEventListener("click",()=>{
       document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
@@ -446,13 +453,20 @@ function initApp(){
 
 function COLOR_HEX(){return{青:"#2563eb",緑:"#2ea043",橙:"#e08a3c",紫:"#8b5cf6",赤:"#c0262d"}}
 function escA(s){return String(s||"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
-function rowsCsv(id){return Array.from(document.querySelectorAll("#"+id+" tbody tr")).map(tr=>Array.from(tr.querySelectorAll("td input,td select")).map(i=>i.value.trim()).filter(v=>v.length).join(",")).filter(l=>l).join("\n")}
+
+// ★修正: 空欄項目がある場合にカンマの要素数がズレないように修正
+function rowsCsv(id){
+  return Array.from(document.querySelectorAll("#"+id+" tbody tr")).map(tr=>{
+    const inputs = Array.from(tr.querySelectorAll("td input, td select"));
+    return inputs.map(i=>i.value.trim()).join(",");
+  }).filter(l=>l.replace(/,/g,"").length > 0).join("\n");
+}
 
 function syncCsv(){
-  $("_cl").value=rowsCsv("tblCl")||$("_cl").value;
-  $("_dr").value=rowsCsv("tblDr")||$("_dr").value;
-  $("_off").value=rowsCsv("tblOff")||$("_off").value;
-  $("_av").value=rowsCsv("tblAv")||$("_av").value;
+  $("_cl").value=rowsCsv("tblCl")\vert{}\vert{}$("_cl").value;
+  $("_dr").value=rowsCsv("tblDr")\vert{}\vert{}$("_dr").value;
+  $("_off").value=rowsCsv("tblOff")\vert{}\vert{}$("_off").value;
+  $("_av").value=rowsCsv("tblAv")\vert{}\vert{}$("_av").value;
   $("_mk").value=Array.from($("mkrChips").children).map(c=>`${c.dataset.lab},${c.dataset.col}`).join("\n")||$("_mk").value;
 }
 
@@ -462,7 +476,7 @@ function clRow(p){const tr=document.createElement("tr");const wdSel='<select cla
 
 function buildDrRows(lines){const tbody=document.querySelector("#tblDr tbody");tbody.innerHTML="";(lines||"").split("\n").filter(l=>l.trim()).forEach(l=>{const p=l.split(",").map(s=>s.trim());tbody.appendChild(drRow(p));});if(!tbody.children.length)tbody.appendChild(drRow(["","","","","Y",""]));}
 
-function drRow(p){const tr=document.createElement("tr");const roleSel='<select class="cx"><option value="非常勤">非常勤</option><option value="常勤" '+((!p[1]||p[1]==="常勤")?"selected":"")+'>常勤</option><option value="研修医" '+(p[1]==="研修医"?"selected":"")+'>研修医</option></select>';const wkSel=`<select class="cx"><option ${(!p[4]||p[4]==="Y")?"selected":""} value="Y">可</option><option ${p[4]==="N"?"selected":""} value="N">不可</option></select>`;tr.innerHTML=`<td><input type="text" value="${escA(p[0])}" placeholder="Dr.A"></td><td>${roleSel}</td><td><input class="cx" type="number" min="1" max="31" value="${escA(p[2])}" placeholder="20"></td><td><input type="text" value="${escA(p[3])}" placeholder="B岡山/広島"></td><td>${wkSel}</td><td><input type="email" value="${escA(p[5])}" placeholder="任意"></td><td><button type="button" class="x" title="削除">×</button></td>`;tr.querySelector(".x").onclick=()=>{tr.remove();if(!document.querySelector("#tblDr tbody").children.length)document.querySelector("#tblDr tbody").appendChild(drRow(["","","","","Y",""]));syncCsv();saveSet()};tr.querySelectorAll("input,select").forEach(el=>el.addEventListener("input",()=>{syncCsv();saveSet()}));return tr;}
+function drRow(p){const tr=document.createElement("tr");const roleSel='<select class="cx"><option value="非常勤" '+(p[1]==="非常勤"?"selected":"")+'>非常勤</option><option value="常勤" '+((!p[1]||p[1]==="常勤")?"selected":"")+'>常勤</option><option value="研修医" '+(p[1]==="研修医"?"selected":"")+'>研修医</option></select>';const wkSel=`<select class="cx"><option ${(!p[4]||p[4]==="Y")?"selected":""} value="Y">可</option><option ${p[4]==="N"?"selected":""} value="N">不可</option></select>`;tr.innerHTML=`<td><input type="text" value="${escA(p[0])}" placeholder="Dr.A"></td><td>${roleSel}</td><td><input class="cx" type="number" min="1" max="31" value="${escA(p[2])}" placeholder="20"></td><td><input type="text" value="${escA(p[3])}" placeholder="B岡山/広島"></td><td>${wkSel}</td><td><input type="email" value="${escA(p[5])}" placeholder="任意"></td><td><button type="button" class="x" title="削除">×</button></td>`;tr.querySelector(".x").onclick=()=>{tr.remove();if(!document.querySelector("#tblDr tbody").children.length)document.querySelector("#tblDr tbody").appendChild(drRow(["","","","","Y",""]));syncCsv();saveSet()};tr.querySelectorAll("input,select").forEach(el=>el.addEventListener("input",()=>{syncCsv();saveSet()}));return tr;}
 
 function buildOffRows(lines,id){const tbody=document.querySelector("#"+id+" tbody");tbody.innerHTML="";(lines||"").split("\n").filter(l=>l.trim()).forEach(l=>{const p=l.split(",").map(s=>s.trim());tbody.appendChild(offRow(id,p));});if(!tbody.children.length)tbody.appendChild(offRow(id,["",""]));}
 
