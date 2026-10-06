@@ -92,9 +92,9 @@ table.sheet{border-collapse:separate;border-spacing:0;font-size:11px;min-width:0
   <aside class="sidebar">
     <div class="brand">シフト調整</div>
     <nav class="side-nav">
-      <button data-screen="setup" class="active"><span>⚙️</span>初期設定</button>
-      <button data-screen="rulesScreen"><span>📋</span>ルール設定</button>
-      <button data-screen="monthly"><span>📅</span>月次業務</button>
+      <button type="button" onclick="switchTab('setup')" id="nav-setup" class="active"><span>⚙️</span>初期設定</button>
+      <button type="button" onclick="switchTab('rulesScreen')" id="nav-rulesScreen"><span>📋</span>ルール設定</button>
+      <button type="button" onclick="switchTab('monthly')" id="nav-monthly"><span>📅</span>月次業務</button>
     </nav>
   </aside>
 
@@ -113,7 +113,7 @@ table.sheet{border-collapse:separate;border-spacing:0;font-size:11px;min-width:0
               <thead><tr><th style="width:24%">院名</th><th style="width:14%">必要人数</th><th style="width:18%">休診曜日</th><th style="width:14%">優先度</th><th>曜日別の人数（例：土3/金2）</th><th style="width:32px"></th></tr></thead>
               <tbody></tbody>
             </table>
-            <div style="margin-top:8px"><button type="button" class="ghost" id="addCl">＋ 院を追加</button></div>
+            <div style="margin-top:8px"><button type="button" class="ghost" onclick="addClRow()">＋ 院を追加</button></div>
           </div>
 
           <div class="panel">
@@ -122,7 +122,7 @@ table.sheet{border-collapse:separate;border-spacing:0;font-size:11px;min-width:0
               <thead><tr><th style="width:18%">氏名</th><th style="width:13%">区分</th><th style="width:11%">月の上限</th><th>入れる院（優先順に / 区切り）</th><th style="width:11%">土日祝</th><th>メール（任意）</th><th style="width:32px"></th></tr></thead>
               <tbody></tbody>
             </table>
-            <div style="margin-top:8px"><button type="button" class="ghost" id="addDr">＋ 医師を追加</button></div>
+            <div style="margin-top:8px"><button type="button" class="ghost" onclick="addDrRow()">＋ 医師を追加</button></div>
           </div>
         </div>
       </section>
@@ -151,7 +151,7 @@ table.sheet{border-collapse:separate;border-spacing:0;font-size:11px;min-width:0
             <div class="add" style="display:flex;gap:6px;flex-wrap:wrap">
               <input type="text" id="mkNew" placeholder="ラベル（例：22時まで可）">
               <select id="mkCol"><option>青</option><option>緑</option><option>橙</option><option>紫</option><option>赤</option></select>
-              <button type="button" id="mkAdd">＋ 追加</button>
+              <button type="button" onclick="addNewMarker()">＋ 追加</button>
             </div>
           </div>
         </div>
@@ -169,7 +169,7 @@ table.sheet{border-collapse:separate;border-spacing:0;font-size:11px;min-width:0
           </div>
           <div class="acts">
             <label style="display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--sub)">対象月<input type="month" id="ym"></label>
-            <button type="button" id="go">シフト案を自動作成</button>
+            <button type="button" id="go" onclick="generateShift()">シフト案を自動作成</button>
           </div>
         </div>
 
@@ -181,7 +181,7 @@ table.sheet{border-collapse:separate;border-spacing:0;font-size:11px;min-width:0
               <thead><tr><th style="width:24%">Dr</th><th>日付（複数可・カンマまたは範囲で）</th><th style="width:32px"></th></tr></thead>
               <tbody></tbody>
             </table>
-            <div style="margin-top:8px"><button type="button" class="ghost" id="addOff">＋ 行を追加</button></div>
+            <div style="margin-top:8px"><button type="button" class="ghost" onclick="addOffRow('tblOff')">＋ 行を追加</button></div>
           </div>
 
           <div class="panel">
@@ -191,14 +191,14 @@ table.sheet{border-collapse:separate;border-spacing:0;font-size:11px;min-width:0
               <thead><tr><th style="width:24%">Dr</th><th>日付（複数可・カンマまたは範囲で）</th><th style="width:32px"></th></tr></thead>
               <tbody></tbody>
             </table>
-            <div style="margin-top:8px"><button type="button" class="ghost" id="addAv">＋ 行を追加</button></div>
+            <div style="margin-top:8px"><button type="button" class="ghost" onclick="addOffRow('tblAv')">＋ 行を追加</button></div>
           </div>
         </div>
 
         <!-- シフト結果表示 -->
         <div id="out" style="margin-top:30px" hidden>
           <h2>シフト案プレビュー</h2>
-          <div style="margin:14px 0"><button type="button" id="regen" class="ghost">↻ もう一度自動作成</button> <button type="button" id="xl" class="xl">↓ Excel出力</button></div>
+          <div style="margin:14px 0"><button type="button" class="ghost" onclick="regenShift()">↻ もう一度自動作成</button> <button type="button" id="xl" class="xl" onclick="exportToExcel()">↓ Excel出力</button></div>
           <div class="scroll sheet"><table id="tb" class="sheet"></table></div>
           <span class="mut" id="ex" style="font-size:12.5px;display:block;margin:10px 0"></span>
 
@@ -226,13 +226,21 @@ const lines=s=>s.split("\n").map(l=>l.trim()).filter(Boolean),toks=(s,c)=>(s||""
 const COL={青:"#2563eb",緑:"#16a34a",橙:"#ea580c",紫:"#7c3aed",赤:"#dc2626"};
 const S={slots:null,marks:{},neg:{},C:null};
 
-// 安全なストレージアクセスラッパー
 const memStore = {};
 const store = {
   get(k) { try { return localStorage.getItem(k); } catch(e) { return memStore[k]||null; } },
   set(k, v) { try { localStorage.setItem(k, v); } catch(e) { memStore[k]=v; } },
   remove(k) { try { localStorage.removeItem(k); } catch(e) { delete memStore[k]; } }
 };
+
+function switchTab(screenId) {
+  document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
+  document.querySelectorAll(".side-nav button").forEach(b=>b.classList.remove("active"));
+  const target = $(screenId);
+  if(target) target.classList.add("active");
+  const navBtn = $("nav-" + screenId);
+  if(navBtn) navBtn.classList.add("active");
+}
 
 function showToast(msg, isError = false) {
   const t = document.createElement("div");
@@ -270,16 +278,6 @@ function ctx(){
 }
 
 const works=(C,sl)=>{const W=C.dr.map(()=>Array.from({length:C.days+1},()=>[]));sl.forEach((s,ci)=>{for(let d=1;d<=C.days;d++)s[d].forEach(di=>W[di][d].push(ci))});return W};
-
-const RULES=[
-{id:"short",name:"必要人数に届かない",on:1},
-{id:"streak",name:"連勤の上限超過",on:1},
-{id:"we",name:"土日祝の勤務不可",on:1}
-];
-
-if($("rulesBox")) {
-  $("rulesBox").innerHTML=RULES.map(r=>`<label class="ck"><input type="checkbox" id="r_${r.id}" ${r.on?"checked":""}>${r.name}</label>`).join("");
-}
 
 function auto(C){
  const{cl,dr,days}=C,sl=cl.map(()=>Array.from({length:days+1},()=>[])),cnt=dr.map(()=>0),st=dr.map(()=>0),wc=dr.map(()=>({})),last=dr.map(()=>-1);
@@ -322,100 +320,6 @@ function render(){
  if($("out")) $("out").hidden=false;
 }
 
-const getSet=()=>{const s={};["_cl","_dr","mc","wl","hol","_mk"].forEach(k=>{ if($(k)) s[k]=$(k).value; });return s};
-const putSet=v=>{if(!v)return;["_cl","_dr","mc","wl","hol","_mk"].forEach(k=>{if(v[k]&&$(k))$(k).value=v[k]});
- buildClRows($("_cl").value);buildDrRows($("_dr").value);renderMkr($("_mk").value);
-};
-
-function saveSet(){ store.set(LK+"set",JSON.stringify(getSet())); }
-
-function monthJson(){const C=ctx(),slots={};if(S.slots)C.cl.forEach((c,ci)=>{slots[c.name]={};for(let d=1;d<=C.days;d++)if(S.slots[ci][d].length)slots[c.name][d]=S.slots[ci][d].map(i=>C.dr[i].name)});return JSON.stringify({has:!!S.slots,slots})}
-
-function saveMonth(){ const k=$("ym").value; store.set(LK+"m:"+k,monthJson()); }
-
-function loadMonth(){
-  const k=$("ym").value, js=store.get(LK+"m:"+k);
-  S.slots=null;
-  if(js){
-    try{
-      const o=JSON.parse(js),C=ctx();
-      if(o.has){
-        S.slots=C.cl.map(()=>Array.from({length:C.days+1},()=>[]));
-        Object.entries(o.slots||{}).forEach(([cn,ds])=>{
-          const ci=C.cl.findIndex(c=>c.name===cn);
-          if(ci>=0) Object.entries(ds).forEach(([d,ns])=>{S.slots[ci][d]=ns.map(n=>C.dr.findIndex(x=>x.name===n)).filter(i=>i>=0)})
-        });
-      }
-    }catch(e){}
-  }
-  render();
-}
-
-function initApp(){
-  const n0=new Date(),nm=new Date(n0.getFullYear(),n0.getMonth()+1,1);
-  if($("ym")) $("ym").value=nm.getFullYear()+"-"+String(nm.getMonth()+1).padStart(2,"0");
-  
-  try{ putSet(JSON.parse(store.get(LK+"set")||"null")); }catch(e){}
-  
-  if($("tblCl") && !document.querySelector("#tblCl tbody").children.length) buildClRows($("_cl").value);
-  if($("tblDr") && !document.querySelector("#tblDr tbody").children.length) buildDrRows($("_dr").value);
-  if($("tblOff")) buildOffRows($("_off").value,"tblOff");
-  if($("tblAv")) buildOffRows($("_av").value,"tblAv");
-  if($("mkrChips")) renderMkr($("_mk").value);
-  
-  // ナビゲーション切り替え
-  document.querySelectorAll(".side-nav button").forEach(btn=>{
-    btn.onclick=()=>{
-      document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
-      document.querySelectorAll(".side-nav button").forEach(b=>b.classList.remove("active"));
-      const target = $(btn.dataset.screen);
-      if(target) target.classList.add("active");
-      btn.classList.add("active");
-    };
-  });
-  
-  // 行追加ボタン
-  if($("addCl")) $("addCl").onclick=()=>{ document.querySelector("#tblCl tbody").appendChild(clRow(["","","","",""])); syncCsv(); saveSet(); };
-  if($("addDr")) $("addDr").onclick=()=>{ document.querySelector("#tblDr tbody").appendChild(drRow(["","常勤","","","Y",""])); syncCsv(); saveSet(); };
-  if($("addOff")) $("addOff").onclick=()=>{ document.querySelector("#tblOff tbody").appendChild(offRow("tblOff",["",""])); syncCsv(); saveMonth(); };
-  if($("addAv")) $("addAv").onclick=()=>{ document.querySelector("#tblAv tbody").appendChild(offRow("tblAv",["",""])); syncCsv(); saveMonth(); };
-  
-  ["_cl","_dr","mc","wl","hol","_mk"].forEach(id=>{const el=$(id);if(el)el.addEventListener("input",saveSet)});
-  ["_off","_av"].forEach(id=>{const el=$(id);if(el)el.addEventListener("input",()=>{syncCsv();saveMonth();loadMonth()})});
-  
-  if($("ym")) $("ym").addEventListener("change",loadMonth);
-  if($("go")) $("go").onclick=async()=>{
-    try{
-      const C=ctx();
-      if(!C.cl.length||!C.dr.length){showToast("院設定・医師設定を入力してください",true);return}
-      showToast("シフト案を作成中…");
-      S.slots=auto(C);
-      render();
-      saveMonth();
-      showToast("✓ シフト案を自動作成しました");
-    }catch(e){showToast("エラー："+e.message,true)}
-  };
-  
-  if($("regen")) $("regen").onclick=()=>{if(!confirm("もう一度自動作成しますか？"))return;S.slots=auto(S.C);render()};
-  
-  if($("xl")) $("xl").onclick=async()=>{
-    if(!S.slots){showToast("先にシフト案を作成してください",true);return}
-    if(typeof ExcelJS === "undefined"){showToast("Excelライブラリの読み込みに失敗しました",true);return}
-    const C=S.C,sl=S.slots;
-    const wb=new ExcelJS.Workbook(),ws=wb.addWorksheet("シフト表");
-    ws.columns=["医院",...Array.from({length:C.days},(_,i)=>({header:String(i+1).padStart(2,"0")}))];
-    C.cl.forEach((c,ci)=>{const row=[""+c.name,...Array.from({length:C.days},(_,d)=>sl[ci][d+1].map(i=>C.dr[i].name).join(","))];ws.addRow(row)});
-    const buf=await wb.xlsx.writeBuffer(),name="シフト_"+C.y+"-"+String(C.m).padStart(2,"0")+".xlsx";
-    const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}));a.download=name;document.body.appendChild(a);a.click();a.remove();
-    showToast("✓ Excel出力しました："+name);
-  };
-  
-  loadMonth();
-}
-
-function COLOR_HEX(){return{青:"#2563eb",緑:"#2ea043",橙:"#e08a3c",紫:"#8b5cf6",赤:"#c0262d"}}
-function escA(s){return String(s||"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
-
 function rowsCsv(id){
   const el = $("#"+id);
   if(!el) return "";
@@ -433,26 +337,157 @@ function syncCsv(){
   if($("_mk") && $("mkrChips")) $("_mk").value=Array.from($("mkrChips").children).map(c=>`${c.dataset.lab},${c.dataset.col}`).join("\n")||$("_mk").value;
 }
 
-function buildClRows(lines){const tbody=document.querySelector("#tblCl tbody");if(!tbody)return;tbody.innerHTML="";(lines||"").split("\n").filter(l=>l.trim()).forEach(l=>{const p=l.split(",").map(s=>s.trim());tbody.appendChild(clRow(p));});if(!tbody.children.length)tbody.appendChild(clRow(["","","","",""]));}
+const getSet=()=>{const s={};["_cl","_dr","mc","wl","hol","_mk"].forEach(k=>{ if($(k)) s[k]=$(k).value; });return s};
+const putSet=v=>{if(!v)return;["_cl","_dr","mc","wl","hol","_mk"].forEach(k=>{if(v[k]&&$(k))$(k).value=v[k]});
+ buildClRows($("_cl").value);buildDrRows($("_dr").value);renderMkr($("_mk").value);
+};
 
-function clRow(p){const tr=document.createElement("tr");const wdSel='<select class="cx"><option value="">－</option>'+WD.split("").map(w=>`<option value="${w}"${(p[2]||"").includes(w)?"selected":""}>${w}</option>`).join("")+'</select>';tr.innerHTML=`<td><input type="text" value="${escA(p[0])}" placeholder="例：B岡山"></td><td><input class="cx" type="number" min="1" max="9" value="${escA(p[1])}" placeholder="1"></td><td>${wdSel}</td><td><input class="cx" type="number" min="1" value="${escA(p[3])}" placeholder="1"></td><td><input type="text" value="${escA(p[4])}" placeholder="土3/金2 など"></td><td><button type="button" class="x" title="削除">×</button></td>`;tr.querySelector(".x").onclick=()=>{tr.remove();if(!document.querySelector("#tblCl tbody").children.length)document.querySelector("#tblCl tbody").appendChild(clRow(["","","","",""]));syncCsv();saveSet()};tr.querySelectorAll("input,select").forEach(el=>el.addEventListener("input",()=>{syncCsv();saveSet()}));return tr;}
+function saveSet(){ store.set(LK+"set",JSON.stringify(getSet())); }
 
-function buildDrRows(lines){const tbody=document.querySelector("#tblDr tbody");if(!tbody)return;tbody.innerHTML="";(lines||"").split("\n").filter(l=>l.trim()).forEach(l=>{const p=l.split(",").map(s=>s.trim());tbody.appendChild(drRow(p));});if(!tbody.children.length)tbody.appendChild(drRow(["","","","","Y",""]));}
+function monthJson(){const C=ctx(),slots={};if(S.slots)C.cl.forEach((c,ci)=>{slots[c.name]={};for(let d=1;d<=C.days;d++)if(S.slots[ci][d].length)slots[c.name][d]=S.slots[ci][d].map(i=>C.dr[i].name)});return JSON.stringify({has:!!S.slots,slots})}
 
-function drRow(p){const tr=document.createElement("tr");const roleSel='<select class="cx"><option value="非常勤" '+(p[1]==="非常勤"?"selected":"")+'>非常勤</option><option value="常勤" '+((!p[1]||p[1]==="常勤")?"selected":"")+'>常勤</option><option value="研修医" '+(p[1]==="研修医"?"selected":"")+'>研修医</option></select>';const wkSel=`<select class="cx"><option ${(!p[4]||p[4]==="Y")?"selected":""} value="Y">可</option><option ${p[4]==="N"?"selected":""} value="N">不可</option></select>`;tr.innerHTML=`<td><input type="text" value="${escA(p[0])}" placeholder="Dr.A"></td><td>${roleSel}</td><td><input class="cx" type="number" min="1" max="31" value="${escA(p[2])}" placeholder="20"></td><td><input type="text" value="${escA(p[3])}" placeholder="B岡山/広島"></td><td>${wkSel}</td><td><input type="email" value="${escA(p[5])}" placeholder="任意"></td><td><button type="button" class="x" title="削除">×</button></td>`;tr.querySelector(".x").onclick=()=>{tr.remove();if(!document.querySelector("#tblDr tbody").children.length)document.querySelector("#tblDr tbody").appendChild(drRow(["","","","","Y",""]));syncCsv();saveSet()};tr.querySelectorAll("input,select").forEach(el=>el.addEventListener("input",()=>{syncCsv();saveSet()}));return tr;}
+function saveMonth(){ if($("ym")) store.set(LK+"m:"+$("ym").value,monthJson()); }
 
-function buildOffRows(lines,id){const tbody=document.querySelector("#"+id+" tbody");if(!tbody)return;tbody.innerHTML="";(lines||"").split("\n").filter(l=>l.trim()).forEach(l=>{const p=l.split(",").map(s=>s.trim());tbody.appendChild(offRow(id,p));});if(!tbody.children.length)tbody.appendChild(offRow(id,["",""]));}
+function loadMonth(){
+  if(!$("ym")) return;
+  const k=$("ym").value, js=store.get(LK+"m:"+k);
+  S.slots=null;
+  if(js){
+    try{
+      const o=JSON.parse(js),C=ctx();
+      if(o.has){
+        S.slots=C.cl.map(()=>Array.from({length:C.days+1},()=>[]));
+        Object.entries(o.slots||{}).forEach(([cn,ds])=>{
+          const ci=C.cl.findIndex(c=>c.name===cn);
+          if(ci>=0) Object.entries(ds).forEach(([d,ns])=>{S.slots[ci][d]=ns.map(n=>C.dr.findIndex(x=>x.name===n)).filter(i=>i>=0)})
+        });
+      }
+    }catch(e){}
+  }
+  render();
+}
 
-function offRow(id,p){const tr=document.createElement("tr");tr.innerHTML=`<td><input type="text" value="${escA(p[0])}" placeholder="Dr.A"></td><td><input type="text" value="${escA(p[1])}" placeholder="3/10-12 など"></td><td><button type="button" class="x" title="削除">×</button></td>`;tr.querySelector(".x").onclick=()=>{tr.remove();if(!document.querySelector("#"+id+" tbody").children.length)document.querySelector("#"+id+" tbody").appendChild(offRow(id,["",""]));syncCsv();saveMonth();loadMonth()};tr.querySelectorAll("input").forEach(el=>el.addEventListener("input",()=>{syncCsv();saveMonth();loadMonth()}));return tr;}
+function escA(s){return String(s||"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
+
+function clRow(p){
+  const tr=document.createElement("tr");
+  const wdSel='<select class="cx"><option value="">－</option>'+WD.split("").map(w=>`<option value="${w}"${(p[2]||"").includes(w)?"selected":""}>${w}</option>`).join("")+'</select>';
+  tr.innerHTML=`<td><input type="text" value="${escA(p[0])}" placeholder="例：B岡山"></td><td><input class="cx" type="number" min="1" max="9" value="${escA(p[1])}" placeholder="1"></td><td>${wdSel}</td><td><input class="cx" type="number" min="1" value="${escA(p[3])}" placeholder="1"></td><td><input type="text" value="${escA(p[4])}" placeholder="土3/金2 など"></td><td><button type="button" class="x" title="削除">×</button></td>`;
+  tr.querySelector(".x").onclick=()=>{tr.remove();if(!document.querySelector("#tblCl tbody").children.length)addClRow();syncCsv();saveSet()};
+  tr.querySelectorAll("input,select").forEach(el=>el.addEventListener("input",()=>{syncCsv();saveSet()}));
+  return tr;
+}
+
+function drRow(p){
+  const tr=document.createElement("tr");
+  const roleSel='<select class="cx"><option value="非常勤" '+(p[1]==="非常勤"?"selected":"")+'>非常勤</option><option value="常勤" '+((!p[1]||p[1]==="常勤")?"selected":"")+'>常勤</option><option value="研修医" '+(p[1]==="研修医"?"selected":"")+'>研修医</option></select>';
+  const wkSel=`<select class="cx"><option ${(!p[4]||p[4]==="Y")?"selected":""} value="Y">可</option><option ${p[4]==="N"?"selected":""} value="N">不可</option></select>`;
+  tr.innerHTML=`<td><input type="text" value="${escA(p[0])}" placeholder="Dr.A"></td><td>${roleSel}</td><td><input class="cx" type="number" min="1" max="31" value="${escA(p[2])}" placeholder="20"></td><td><input type="text" value="${escA(p[3])}" placeholder="B岡山/広島"></td><td>${wkSel}</td><td><input type="email" value="${escA(p[5])}" placeholder="任意"></td><td><button type="button" class="x" title="削除">×</button></td>`;
+  tr.querySelector(".x").onclick=()=>{tr.remove();if(!document.querySelector("#tblDr tbody").children.length)addDrRow();syncCsv();saveSet()};
+  tr.querySelectorAll("input,select").forEach(el=>el.addEventListener("input",()=>{syncCsv();saveSet()}));
+  return tr;
+}
+
+function offRow(id,p){
+  const tr=document.createElement("tr");
+  tr.innerHTML=`<td><input type="text" value="${escA(p[0])}" placeholder="Dr.A"></td><td><input type="text" value="${escA(p[1])}" placeholder="3/10-12 など"></td><td><button type="button" class="x" title="削除">×</button></td>`;
+  tr.querySelector(".x").onclick=()=>{tr.remove();if(!document.querySelector("#"+id+" tbody").children.length)addOffRow(id);syncCsv();saveMonth();loadMonth()};
+  tr.querySelectorAll("input").forEach(el=>el.addEventListener("input",()=>{syncCsv();saveMonth();loadMonth()}));
+  return tr;
+}
+
+function addClRow(){
+  const tbody=document.querySelector("#tblCl tbody");
+  if(tbody) tbody.appendChild(clRow(["","","","",""]));
+}
+
+function addDrRow(){
+  const tbody=document.querySelector("#tblDr tbody");
+  if(tbody) tbody.appendChild(drRow(["","常勤","","","Y",""]));
+}
+
+function addOffRow(id){
+  const tbody=document.querySelector("#"+id+" tbody");
+  if(tbody) tbody.appendChild(offRow(id,["",""]));
+}
+
+function buildClRows(lines){const tbody=document.querySelector("#tblCl tbody");if(!tbody)return;tbody.innerHTML="";(lines||"").split("\n").filter(l=>l.trim()).forEach(l=>{const p=l.split(",").map(s=>s.trim());tbody.appendChild(clRow(p));});if(!tbody.children.length)addClRow();}
+
+function buildDrRows(lines){const tbody=document.querySelector("#tblDr tbody");if(!tbody)return;tbody.innerHTML="";(lines||"").split("\n").filter(l=>l.trim()).forEach(l=>{const p=l.split(",").map(s=>s.trim());tbody.appendChild(drRow(p));});if(!tbody.children.length)addDrRow();}
+
+function buildOffRows(lines,id){const tbody=document.querySelector("#"+id+" tbody");if(!tbody)return;tbody.innerHTML="";(lines||"").split("\n").filter(l=>l.trim()).forEach(l=>{const p=l.split(",").map(s=>s.trim());tbody.appendChild(offRow(id,p));});if(!tbody.children.length)addOffRow(id);}
 
 function renderMkr(lines){const box=$("mkrChips");if(!box)return;box.innerHTML="";(lines||"").split("\n").filter(l=>l.trim()).forEach(l=>{const p=l.split(",").map(s=>s.trim());addMkr(p[0],p[1]||"青")});}
 
 function addMkr(label,color){if(!label)return;const box=$("mkrChips");if(!box || Array.from(box.children).some(c=>c.dataset.lab===label))return;const c=document.createElement("span");c.className="m";c.dataset.lab=label;c.dataset.col=color;const cols=COLOR_HEX();c.innerHTML=`<span class="sw" style="background:${cols[color]||"#2563eb"}"></span>${escA(label)} <button type="button" title="削除">×</button>`;c.querySelector("button").onclick=()=>{c.remove();syncCsv();saveSet()};box.appendChild(c);syncCsv();saveSet()}
 
-if($("mkAdd")) $("mkAdd").onclick=()=>{const v=$("mkNew").value.trim(),col=$("mkCol").value;if(!v)return;addMkr(v,col);$("mkNew").value=""};
-if($("mkNew")) $("mkNew").addEventListener("keydown",e=>{if(e.key==="Enter"){$("mkAdd").click()}});
+function addNewMarker(){
+  const v=$("mkNew").value.trim(),col=$("mkCol").value;
+  if(!v)return;
+  addMkr(v,col);
+  $("mkNew").value="";
+}
 
-// アプリ起動
+function generateShift(){
+  try{
+    const C=ctx();
+    if(!C.cl.length||!C.dr.length){showToast("院設定・医師設定を入力してください",true);return}
+    showToast("シフト案を作成中…");
+    S.slots=auto(C);
+    render();
+    saveMonth();
+    showToast("✓ シフト案を自動作成しました");
+  }catch(e){showToast("エラー："+e.message,true)}
+}
+
+function regenShift(){
+  if(!confirm("もう一度自動作成しますか？"))return;
+  S.slots=auto(S.C);
+  render();
+}
+
+async function exportToExcel(){
+  if(!S.slots){showToast("先にシフト案を作成してください",true);return}
+  if(typeof ExcelJS === "undefined"){showToast("Excelライブラリの読み込みに失敗しました",true);return}
+  const C=S.C,sl=S.slots;
+  const wb=new ExcelJS.Workbook(),ws=wb.addWorksheet("シフト表");
+  ws.columns=["医院",...Array.from({length:C.days},(_,i)=>({header:String(i+1).padStart(2,"0")}))];
+  C.cl.forEach((c,ci)=>{const row=[""+c.name,...Array.from({length:C.days},(_,d)=>sl[ci][d+1].map(i=>C.dr[i].name).join(","))];ws.addRow(row)});
+  const buf=await wb.xlsx.writeBuffer(),name="シフト_"+C.y+"-"+String(C.m).padStart(2,"0")+".xlsx";
+  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}));a.download=name;document.body.appendChild(a);a.click();a.remove();
+  showToast("✓ Excel出力しました："+name);
+}
+
+function initApp(){
+  const n0=new Date(),nm=new Date(n0.getFullYear(),n0.getMonth()+1,1);
+  if($("ym")) $("ym").value=nm.getFullYear()+"-"+String(nm.getMonth()+1).padStart(2,"0");
+  
+  const RULES=[
+    {id:"short",name:"必要人数に届かない",on:1},
+    {id:"streak",name:"連勤の上限超過",on:1},
+    {id:"we",name:"土日祝の勤務不可",on:1}
+  ];
+  if($("rulesBox")) {
+    $("rulesBox").innerHTML=RULES.map(r=>`<label class="ck"><input type="checkbox" id="r_${r.id}" ${r.on?"checked":""}>${r.name}</label>`).join("");
+  }
+
+  try{ putSet(JSON.parse(store.get(LK+"set")||"null")); }catch(e){}
+  
+  if($("tblCl") && !document.querySelector("#tblCl tbody").children.length) buildClRows($("_cl").value);
+  if($("tblDr") && !document.querySelector("#tblDr tbody").children.length) buildDrRows($("_dr").value);
+  if($("tblOff")) buildOffRows($("_off").value,"tblOff");
+  if($("tblAv")) buildOffRows($("_av").value,"tblAv");
+  if($("mkrChips")) renderMkr($("_mk").value);
+  
+  ["_cl","_dr","mc","wl","hol","_mk"].forEach(id=>{const el=$(id);if(el)el.addEventListener("input",saveSet)});
+  ["_off","_av"].forEach(id=>{const el=$(id);if(el)el.addEventListener("input",()=>{syncCsv();saveMonth();loadMonth()})});
+  
+  if($("ym")) $("ym").addEventListener("change",loadMonth);
+  if($("mkNew")) $("mkNew").addEventListener("keydown",e=>{if(e.key==="Enter")addNewMarker()});
+  
+  loadMonth();
+}
+
 if (document.readyState === "complete" || document.readyState === "interactive") {
   initApp();
 } else {
