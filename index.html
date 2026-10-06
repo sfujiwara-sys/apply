@@ -95,7 +95,7 @@ table.sheet{border-collapse:separate;border-spacing:0;font-size:11px;min-width:0
 </head>
 <body>
 
-<!-- ログインモーダル -->
+<!-- ログイン画面 -->
 <div id="auth" role="dialog" aria-label="管理者ログイン">
  <div class="card">
   <h1>管理者ログイン</h1>
@@ -114,7 +114,7 @@ table.sheet{border-collapse:separate;border-spacing:0;font-size:11px;min-width:0
     <div class="brand">シフト調整</div>
     <nav class="side-nav">
       <button data-screen="setup" class="active"><span>⚙️</span>初期設定</button>
-      <button data-screen="rules"><span>📋</span>ルール設定</button>
+      <button data-screen="rulesScreen"><span>📋</span>ルール設定</button>
       <button data-screen="monthly"><span>📅</span>月次業務</button>
     </nav>
   </aside>
@@ -149,7 +149,7 @@ table.sheet{border-collapse:separate;border-spacing:0;font-size:11px;min-width:0
       </section>
 
       <!-- ===== ルール設定画面 ===== -->
-      <section id="rules" class="screen">
+      <section id="rulesScreen" class="screen">
         <h1>ルール設定</h1>
         <p class="lead">シフト作成のルールを設定します。</p>
 
@@ -162,7 +162,7 @@ table.sheet{border-collapse:separate;border-spacing:0;font-size:11px;min-width:0
 
         <div class="panel">
           <h2>問題点として抽出するルール</h2>
-          <div class="ckcol" id="rules"></div>
+          <div class="ckcol" id="rulesBox"></div>
         </div>
 
         <div class="panel">
@@ -247,7 +247,7 @@ const lines=s=>s.split("\n").map(l=>l.trim()).filter(Boolean),toks=(s,c)=>(s||""
 const COL={青:"#2563eb",緑:"#16a34a",橙:"#ea580c",紫:"#7c3aed",赤:"#dc2626"};
 const S={slots:null,marks:{},neg:{},C:null};
 
-// 安全なストレージアクセスラッパー（エラー停止防止）
+// 安全なストレージアクセスラッパー
 const memStore = {};
 const store = {
   get(k) { try { return localStorage.getItem(k); } catch(e) { return memStore[k]||null; } },
@@ -279,14 +279,15 @@ function parseDays(s){
 }
 
 function ctx(){
- const ymVal = $("ym").value || new Date().toISOString().slice(0,7);
+ const ymEl = $("ym");
+ const ymVal = (ymEl && ymEl.value) ? ymEl.value : new Date().toISOString().slice(0,7);
  const[y,m]=ymVal.split("-").map(Number),days=new Date(y,m,0).getDate(),pl=l=>l.split(",").map(x=>x.trim());
  const cl=lines($("_cl").value).map((l,i)=>{const p=pl(l),by={};toks(p[4],"/").forEach(t=>{const k=WD.indexOf(t[0]);if(k>=0&&t.length>1&&!isNaN(+t.slice(1)))by[k]=+t.slice(1)});return{name:p[0],need:+p[1]||1,closed:[...(p[2]||"")].map(c=>WD.indexOf(c)).filter(k=>k>=0),pri:+p[3]||i+1,by}});
  const dr=lines($("_dr").value).map(l=>{const p=pl(l);return{name:p[0],role:p[1]||"常勤",max:+p[2]||20,cl:toks(p[3],"/"),wk:(p[4]||"Y").toUpperCase()!=="N",mail:p[5]||"",off:new Set(),av:new Set()}});
  ["off","av"].forEach(k=>lines($("_"+k).value).forEach(l=>{const i=l.indexOf(","),x=dr.find(z=>z.name===l.slice(0,i).trim());if(x)parseDays(l.slice(i+1)).forEach(v=>x[k].add(v))}));
  const mk=lines($("_mk").value).map(l=>{const p=pl(l);return{label:p[0],color:COL[p[1]]||"#2563eb"}});
- const hol=parseDays($("hol").value),wd=d=>new Date(y,m-1,d).getDay(),o1=(new Date(y,m-1,1).getDay()+6)%7;
- return{y,m,days,cl,dr,mk,hol,wd,mc:+$("mc").value||6,wl:+$("wl").value||5,
+ const hol=parseDays($("hol")?$("hol").value:""),wd=d=>new Date(y,m-1,d).getDay(),o1=(new Date(y,m-1,1).getDay()+6)%7;
+ return{y,m,days,cl,dr,mk,hol,wd,mc:+($("mc")?$("mc").value:6)||6,wl:+($("wl")?$("wl").value:5)||5,
   we:d=>wd(d)===0||wd(d)===6||hol.has(d),wkOf:d=>Math.floor((d-1+o1)/7),
   need:(c,d)=>c.closed.includes(wd(d))?0:(c.by[wd(d)]??c.need),isOpen:(c,d)=>!c.closed.includes(wd(d))};
 }
@@ -299,7 +300,9 @@ const RULES=[
 {id:"we",name:"土日祝の勤務不可",on:1}
 ];
 
-$("rules").innerHTML=RULES.map(r=>`<label class="ck"><input type="checkbox" id="r_${r.id}" ${r.on?"checked":""}>${r.name}</label>`).join("");
+if($("rulesBox")) {
+  $("rulesBox").innerHTML=RULES.map(r=>`<label class="ck"><input type="checkbox" id="r_${r.id}" ${r.on?"checked":""}>${r.name}</label>`).join("");
+}
 
 function auto(C){
  const{cl,dr,days}=C,sl=cl.map(()=>Array.from({length:days+1},()=>[])),cnt=dr.map(()=>0),st=dr.map(()=>0),wc=dr.map(()=>({})),last=dr.map(()=>-1);
@@ -338,12 +341,12 @@ function render(){
   }h+='</tr>'}); 
  
  $("tb").innerHTML=h;
- $("t2").innerHTML='<tr><th>医師</th><th>出勤日数</th><th>上限</th></tr>'+dr.map((x,di)=>`<tr><td>${x.role==="研修医"?"★":""}${x.name}</td><td><b>${cnt[di]}</b></td><td>${x.max}</td></tr>`).join("");
- $("out").hidden=false;
+ if($("t2")) $("t2").innerHTML='<tr><th>医師</th><th>出勤日数</th><th>上限</th></tr>'+dr.map((x,di)=>`<tr><td>${x.role==="研修医"?"★":""}${x.name}</td><td><b>${cnt[di]}</b></td><td>${x.max}</td></tr>`).join("");
+ if($("out")) $("out").hidden=false;
 }
 
-const getSet=()=>{const s={};["_cl","_dr","mc","wl","hol","_mk"].forEach(k=>s[k]=$(k).value);return s};
-const putSet=v=>{if(!v)return;["_cl","_dr","mc","wl","hol","_mk"].forEach(k=>{if(v[k])$(k).value=v[k]});
+const getSet=()=>{const s={};["_cl","_dr","mc","wl","hol","_mk"].forEach(k=>{ if($(k)) s[k]=$(k).value; });return s};
+const putSet=v=>{if(!v)return;["_cl","_dr","mc","wl","hol","_mk"].forEach(k=>{if(v[k]&&$(k))$(k).value=v[k]});
  buildClRows($("_cl").value);buildDrRows($("_dr").value);renderMkr($("_mk").value);
 };
 
@@ -389,80 +392,83 @@ function checkAuth(){
  const refreshUI = () => {
    saved = store.get(AK);
    first = !saved;
-   $("authMsg").textContent = first ? "初回利用です。管理者用のパスコードを設定してください（4文字以上）。" : "このアプリは管理者専用です。パスコードを入力してください。";
-   $("authBtn").textContent = first ? "パスコードを設定して利用開始" : "ログイン";
-   $("authErr").textContent = "";
-   $("authPw").value = "";
+   if($("authMsg")) $("authMsg").textContent = first ? "初回利用です。管理者用のパスコードを設定してください（4文字以上）。" : "このアプリは管理者専用です。パスコードを入力してください。";
+   if($("authBtn")) $("authBtn").textContent = first ? "パスコードを設定して利用開始" : "ログイン";
+   if($("authErr")) $("authErr").textContent = "";
+   if($("authPw")) $("authPw").value = "";
  };
  
  refreshUI();
  
  const go = () => {
-  const v=$("authPw").value;
-  if(!v){$("authErr").textContent="パスコードを入力してください";return}
+  const v=$("authPw") ? $("authPw").value : "";
+  if(!v){if($("authErr")) $("authErr").textContent="パスコードを入力してください";return}
   if(first){
-   if(v.length<4){$("authErr").textContent="パスコードは4文字以上にしてください";return}
+   if(v.length<4){if($("authErr")) $("authErr").textContent="パスコードは4文字以上にしてください";return}
    store.set(AK, hashPw(v));
    store.setS("shiftApp:session","1");
-   a.style.display="none";
-   ap.classList.remove("app-hidden");
+   if(a) a.style.display="none";
+   if(ap) ap.classList.remove("app-hidden");
    initApp();
    return;
   }
   if(hashPw(v)===saved){
    store.setS("shiftApp:session","1");
-   a.style.display="none";
-   ap.classList.remove("app-hidden");
+   if(a) a.style.display="none";
+   if(ap) ap.classList.remove("app-hidden");
    initApp();
   } else {
-   $("authErr").textContent="パスコードが違います";
+   if($("authErr")) $("authErr").textContent="パスコードが違います";
   }
  };
  
- $("authBtn").onclick = go;
- $("authPw").onkeydown = e => { if(e.key==="Enter") go(); };
- $("resetPwBtn").onclick = () => {
-   if(confirm("登録済みのパスコードをリセットしますか？")){
-     store.remove(AK);
-     refreshUI();
-     $("authErr").textContent = "パスコードをリセットしました。新しいパスコードを設定してください。";
-   }
- };
+ if($("authBtn")) $("authBtn").onclick = go;
+ if($("authPw")) $("authPw").onkeydown = e => { if(e.key==="Enter") go(); };
+ if($("resetPwBtn")) {
+   $("resetPwBtn").onclick = () => {
+     if(confirm("登録済みのパスコードをリセットしますか？")){
+       store.remove(AK);
+       refreshUI();
+       if($("authErr")) $("authErr").textContent = "パスコードをリセットしました。新しいパスコードを設定してください。";
+     }
+   };
+ }
 }
 
 function initApp(){
   const n0=new Date(),nm=new Date(n0.getFullYear(),n0.getMonth()+1,1);
-  $("ym").value=nm.getFullYear()+"-"+String(nm.getMonth()+1).padStart(2,"0");
+  if($("ym")) $("ym").value=nm.getFullYear()+"-"+String(nm.getMonth()+1).padStart(2,"0");
   
   try{ putSet(JSON.parse(store.get(LK+"set")||"null")); }catch(e){}
   
-  if(!document.querySelector("#tblCl tbody").children.length) buildClRows($("_cl").value);
-  if(!document.querySelector("#tblDr tbody").children.length) buildDrRows($("_dr").value);
-  buildOffRows($("_off").value,"tblOff");
-  buildOffRows($("_av").value,"tblAv");
-  renderMkr($("_mk").value);
+  if($("tblCl") && !document.querySelector("#tblCl tbody").children.length) buildClRows($("_cl").value);
+  if($("tblDr") && !document.querySelector("#tblDr tbody").children.length) buildDrRows($("_dr").value);
+  if($("tblOff")) buildOffRows($("_off").value,"tblOff");
+  if($("tblAv")) buildOffRows($("_av").value,"tblAv");
+  if($("mkrChips")) renderMkr($("_mk").value);
   
   // ナビゲーション切り替え
   document.querySelectorAll(".side-nav button").forEach(btn=>{
     btn.onclick=()=>{
       document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
       document.querySelectorAll(".side-nav button").forEach(b=>b.classList.remove("active"));
-      $(btn.dataset.screen).classList.add("active");
+      const target = $(btn.dataset.screen);
+      if(target) target.classList.add("active");
       btn.classList.add("active");
     };
   });
   
   // 行追加ボタン
-  $("addCl").onclick=()=>{ document.querySelector("#tblCl tbody").appendChild(clRow(["","","","",""])); syncCsv(); saveSet(); };
-  $("addDr").onclick=()=>{ document.querySelector("#tblDr tbody").appendChild(drRow(["","常勤","","","Y",""])); syncCsv(); saveSet(); };
-  $("addOff").onclick=()=>{ document.querySelector("#tblOff tbody").appendChild(offRow("tblOff",["",""])); syncCsv(); saveMonth(); };
-  $("addAv").onclick=()=>{ document.querySelector("#tblAv tbody").appendChild(offRow("tblAv",["",""])); syncCsv(); saveMonth(); };
+  if($("addCl")) $("addCl").onclick=()=>{ document.querySelector("#tblCl tbody").appendChild(clRow(["","","","",""])); syncCsv(); saveSet(); };
+  if($("addDr")) $("addDr").onclick=()=>{ document.querySelector("#tblDr tbody").appendChild(drRow(["","常勤","","","Y",""])); syncCsv(); saveSet(); };
+  if($("addOff")) $("addOff").onclick=()=>{ document.querySelector("#tblOff tbody").appendChild(offRow("tblOff",["",""])); syncCsv(); saveMonth(); };
+  if($("addAv")) $("addAv").onclick=()=>{ document.querySelector("#tblAv tbody").appendChild(offRow("tblAv",["",""])); syncCsv(); saveMonth(); };
   
   ["_cl","_dr","mc","wl","hol","_mk"].forEach(id=>{const el=$(id);if(el)el.addEventListener("input",saveSet)});
   ["_off","_av"].forEach(id=>{const el=$(id);if(el)el.addEventListener("input",()=>{syncCsv();saveMonth();loadMonth()})});
   
-  $("ym").addEventListener("change",loadMonth);
-  $("go").onclick=async()=>{
+  if($("ym")) $("ym").addEventListener("change",loadMonth);
+  if($("go")) $("go").onclick=async()=>{
     try{
       const C=ctx();
       if(!C.cl.length||!C.dr.length){showToast("院設定・医師設定を入力してください",true);return}
@@ -474,9 +480,9 @@ function initApp(){
     }catch(e){showToast("エラー："+e.message,true)}
   };
   
-  $("regen").onclick=()=>{if(!confirm("もう一度自動作成しますか？"))return;S.slots=auto(S.C);render()};
+  if($("regen")) $("regen").onclick=()=>{if(!confirm("もう一度自動作成しますか？"))return;S.slots=auto(S.C);render()};
   
-  $("xl").onclick=async()=>{
+  if($("xl")) $("xl").onclick=async()=>{
     if(!S.slots){showToast("先にシフト案を作成してください",true);return}
     if(typeof ExcelJS === "undefined"){showToast("Excelライブラリの読み込みに失敗しました",true);return}
     const C=S.C,sl=S.slots;
@@ -495,44 +501,43 @@ function COLOR_HEX(){return{青:"#2563eb",緑:"#2ea043",橙:"#e08a3c",紫:"#8b5c
 function escA(s){return String(s||"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
 
 function rowsCsv(id){
-  return Array.from(document.querySelectorAll("#"+id+" tbody tr")).map(tr=>{
+  const el = $("#"+id);
+  if(!el) return "";
+  return Array.from(el.querySelectorAll("tbody tr")).map(tr=>{
     const inputs = Array.from(tr.querySelectorAll("td input, td select"));
     return inputs.map(i=>i.value.trim()).join(",");
   }).filter(l=>l.replace(/,/g,"").length > 0).join("\n");
 }
 
 function syncCsv(){
-  $("_cl").value=rowsCsv("tblCl")\vert{}\vert{}$("_cl").value;
-  $("_dr").value=rowsCsv("tblDr")\vert{}\vert{}$("_dr").value;
-  $("_off").value=rowsCsv("tblOff")\vert{}\vert{}$("_off").value;
-  $("_av").value=rowsCsv("tblAv")\vert{}\vert{}$("_av").value;
-  $("_mk").value=Array.from($("mkrChips").children).map(c=>`${c.dataset.lab},${c.dataset.col}`).join("\n")||$("_mk").value;
+  if($("_cl")) $("_cl").value=rowsCsv("tblCl")\vert{}\vert{}$("_cl").value;
+  if($("_dr")) $("_dr").value=rowsCsv("tblDr")\vert{}\vert{}$("_dr").value;
+  if($("_off")) $("_off").value=rowsCsv("tblOff")\vert{}\vert{}$("_off").value;
+  if($("_av")) $("_av").value=rowsCsv("tblAv")\vert{}\vert{}$("_av").value;
+  if($("_mk") && $("mkrChips")) $("_mk").value=Array.from($("mkrChips").children).map(c=>`${c.dataset.lab},${c.dataset.col}`).join("\n")||$("_mk").value;
 }
 
-function buildClRows(lines){const tbody=document.querySelector("#tblCl tbody");tbody.innerHTML="";(lines||"").split("\n").filter(l=>l.trim()).forEach(l=>{const p=l.split(",").map(s=>s.trim());tbody.appendChild(clRow(p));});if(!tbody.children.length)tbody.appendChild(clRow(["","","","",""]));}
+function buildClRows(lines){const tbody=document.querySelector("#tblCl tbody");if(!tbody)return;tbody.innerHTML="";(lines||"").split("\n").filter(l=>l.trim()).forEach(l=>{const p=l.split(",").map(s=>s.trim());tbody.appendChild(clRow(p));});if(!tbody.children.length)tbody.appendChild(clRow(["","","","",""]));}
 
 function clRow(p){const tr=document.createElement("tr");const wdSel='<select class="cx"><option value="">－</option>'+WD.split("").map(w=>`<option value="${w}"${(p[2]||"").includes(w)?"selected":""}>${w}</option>`).join("")+'</select>';tr.innerHTML=`<td><input type="text" value="${escA(p[0])}" placeholder="例：B岡山"></td><td><input class="cx" type="number" min="1" max="9" value="${escA(p[1])}" placeholder="1"></td><td>${wdSel}</td><td><input class="cx" type="number" min="1" value="${escA(p[3])}" placeholder="1"></td><td><input type="text" value="${escA(p[4])}" placeholder="土3/金2 など"></td><td><button type="button" class="x" title="削除">×</button></td>`;tr.querySelector(".x").onclick=()=>{tr.remove();if(!document.querySelector("#tblCl tbody").children.length)document.querySelector("#tblCl tbody").appendChild(clRow(["","","","",""]));syncCsv();saveSet()};tr.querySelectorAll("input,select").forEach(el=>el.addEventListener("input",()=>{syncCsv();saveSet()}));return tr;}
 
-function buildDrRows(lines){const tbody=document.querySelector("#tblDr tbody");tbody.innerHTML="";(lines||"").split("\n").filter(l=>l.trim()).forEach(l=>{const p=l.split(",").map(s=>s.trim());tbody.appendChild(drRow(p));});if(!tbody.children.length)tbody.appendChild(drRow(["","","","","Y",""]));}
+function buildDrRows(lines){const tbody=document.querySelector("#tblDr tbody");if(!tbody)return;tbody.innerHTML="";(lines||"").split("\n").filter(l=>l.trim()).forEach(l=>{const p=l.split(",").map(s=>s.trim());tbody.appendChild(drRow(p));});if(!tbody.children.length)tbody.appendChild(drRow(["","","","","Y",""]));}
 
 function drRow(p){const tr=document.createElement("tr");const roleSel='<select class="cx"><option value="非常勤" '+(p[1]==="非常勤"?"selected":"")+'>非常勤</option><option value="常勤" '+((!p[1]||p[1]==="常勤")?"selected":"")+'>常勤</option><option value="研修医" '+(p[1]==="研修医"?"selected":"")+'>研修医</option></select>';const wkSel=`<select class="cx"><option ${(!p[4]||p[4]==="Y")?"selected":""} value="Y">可</option><option ${p[4]==="N"?"selected":""} value="N">不可</option></select>`;tr.innerHTML=`<td><input type="text" value="${escA(p[0])}" placeholder="Dr.A"></td><td>${roleSel}</td><td><input class="cx" type="number" min="1" max="31" value="${escA(p[2])}" placeholder="20"></td><td><input type="text" value="${escA(p[3])}" placeholder="B岡山/広島"></td><td>${wkSel}</td><td><input type="email" value="${escA(p[5])}" placeholder="任意"></td><td><button type="button" class="x" title="削除">×</button></td>`;tr.querySelector(".x").onclick=()=>{tr.remove();if(!document.querySelector("#tblDr tbody").children.length)document.querySelector("#tblDr tbody").appendChild(drRow(["","","","","Y",""]));syncCsv();saveSet()};tr.querySelectorAll("input,select").forEach(el=>el.addEventListener("input",()=>{syncCsv();saveSet()}));return tr;}
 
-function buildOffRows(lines,id){const tbody=document.querySelector("#"+id+" tbody");tbody.innerHTML="";(lines||"").split("\n").filter(l=>l.trim()).forEach(l=>{const p=l.split(",").map(s=>s.trim());tbody.appendChild(offRow(id,p));});if(!tbody.children.length)tbody.appendChild(offRow(id,["",""]));}
+function buildOffRows(lines,id){const tbody=document.querySelector("#"+id+" tbody");if(!tbody)return;tbody.innerHTML="";(lines||"").split("\n").filter(l=>l.trim()).forEach(l=>{const p=l.split(",").map(s=>s.trim());tbody.appendChild(offRow(id,p));});if(!tbody.children.length)tbody.appendChild(offRow(id,["",""]));}
 
 function offRow(id,p){const tr=document.createElement("tr");tr.innerHTML=`<td><input type="text" value="${escA(p[0])}" placeholder="Dr.A"></td><td><input type="text" value="${escA(p[1])}" placeholder="3/10-12 など"></td><td><button type="button" class="x" title="削除">×</button></td>`;tr.querySelector(".x").onclick=()=>{tr.remove();if(!document.querySelector("#"+id+" tbody").children.length)document.querySelector("#"+id+" tbody").appendChild(offRow(id,["",""]));syncCsv();saveMonth();loadMonth()};tr.querySelectorAll("input").forEach(el=>el.addEventListener("input",()=>{syncCsv();saveMonth();loadMonth()}));return tr;}
 
-function renderMkr(lines){const box=$("mkrChips");box.innerHTML="";(lines||"").split("\n").filter(l=>l.trim()).forEach(l=>{const p=l.split(",").map(s=>s.trim());addMkr(p[0],p[1]||"青")});}
+function renderMkr(lines){const box=$("mkrChips");if(!box)return;box.innerHTML="";(lines||"").split("\n").filter(l=>l.trim()).forEach(l=>{const p=l.split(",").map(s=>s.trim());addMkr(p[0],p[1]||"青")});}
 
-function addMkr(label,color){if(!label)return;const box=$("mkrChips");if(Array.from(box.children).some(c=>c.dataset.lab===label))return;const c=document.createElement("span");c.className="m";c.dataset.lab=label;c.dataset.col=color;const cols=COLOR_HEX();c.innerHTML=`<span class="sw" style="background:${cols[color]||"#2563eb"}"></span>${escA(label)} <button type="button" title="削除">×</button>`;c.querySelector("button").onclick=()=>{c.remove();syncCsv();saveSet()};box.appendChild(c);syncCsv();saveSet()}
+function addMkr(label,color){if(!label)return;const box=$("mkrChips");if(!box || Array.from(box.children).some(c=>c.dataset.lab===label))return;const c=document.createElement("span");c.className="m";c.dataset.lab=label;c.dataset.col=color;const cols=COLOR_HEX();c.innerHTML=`<span class="sw" style="background:${cols[color]||"#2563eb"}"></span>${escA(label)} <button type="button" title="削除">×</button>`;c.querySelector("button").onclick=()=>{c.remove();syncCsv();saveSet()};box.appendChild(c);syncCsv();saveSet()}
 
-$("mkAdd").onclick=()=>{const v=$("mkNew").value.trim(),col=$("mkCol").value;if(!v)return;addMkr(v,col);$("mkNew").value=""};
-$("mkNew").addEventListener("keydown",e=>{if(e.key==="Enter"){$("mkAdd").click()}});
+if($("mkAdd")) $("mkAdd").onclick=()=>{const v=$("mkNew").value.trim(),col=$("mkCol").value;if(!v)return;addMkr(v,col);$("mkNew").value=""};
+if($("mkNew")) $("mkNew").addEventListener("keydown",e=>{if(e.key==="Enter"){$("mkAdd").click()}});
 
 // アプリ起動
-window.addEventListener("DOMContentLoaded", checkAuth);
-if (document.readyState === "complete" || document.readyState === "interactive") {
-  checkAuth();
-}
+checkAuth();
 </script>
 </body>
 </html>
