@@ -22,12 +22,8 @@ main{max-width:1400px;margin:0 auto;padding:20px 16px 48px}
 h1{font-size:22px;margin:0 0 4px}
 h2{font-size:16px;margin:18px 0 8px}
 p.lead{margin:0 0 18px;color:var(--sub)}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-@media(max-width:900px){.grid{grid-template-columns:1fr}}
 .box{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
-.box small{display:block;color:var(--sub);margin-bottom:6px;font-size:12.5px;line-height:1.5}
 textarea{width:100%;min-height:130px;font:13px/1.55 ui-monospace,Menlo,Consolas,monospace;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px;resize:vertical}
-.row{display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin:14px 0}
 label{font-size:13px;color:var(--sub);display:flex;flex-direction:column;gap:3px}
 input[type=month],input[type=number],input[type=text],input[type=email]{font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)}
 button{font:inherit;font-weight:600;padding:9px 18px;border:0;border-radius:6px;background:var(--acc);color:var(--accfg);cursor:pointer}
@@ -35,19 +31,15 @@ button:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 .scroll{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--card)}
 table{border-collapse:collapse;font-size:12px;min-width:100%}
 th,td{border:1px solid var(--line);padding:3px 4px;text-align:center;white-space:nowrap;vertical-align:top}
-th.n,td.n{position:sticky;left:0;background:var(--card);text-align:left;font-weight:600;z-index:1;padding:4px 8px;min-width:84px}
-td.n small{display:block;font-weight:400;color:var(--sub)}
-button.sec{background:var(--card);color:var(--ink);border:1px solid var(--line);padding:4px 10px;font-weight:500}
 button.ghost{background:transparent;border:1px solid var(--line);color:var(--ink);font-weight:500}
 button.xl{background:#1f6feb;color:#fff}
-button.danger{background:var(--bad);color:#fff}
 
 .screen{display:none}
 .screen.active{display:block}
 
 .settings{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 @media(max-width:1200px){.settings{grid-template-columns:1fr}}
-.panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px}
 .panel h2{font-size:15px;margin:0 0 10px}
 .tbl{width:100%;border-collapse:separate;border-spacing:0}
 .tbl th,.tbl td{border:0;border-bottom:1px solid var(--line);padding:6px 6px;font-size:13px;vertical-align:middle}
@@ -56,21 +48,13 @@ button.danger{background:var(--bad);color:#fff}
 .tbl td .x{background:var(--bg);border:0;color:var(--sub);font-size:18px;width:24px;height:24px;border-radius:6px;cursor:pointer}
 .tbl td .x:hover{color:var(--bad)}
 
-.adv{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:0;margin-top:14px}
-.adv>summary{list-style:none;cursor:pointer;padding:12px 14px;font-weight:600;display:flex;align-items:center;gap:8px}
-.adv>summary::before{content:"";display:inline-block;width:8px;height:8px;border-right:2px solid var(--sub);border-bottom:2px solid var(--sub);transform:rotate(-45deg);transition:transform .2s}
-.adv[open]>summary::before{transform:rotate(45deg)}
-.adv .ib{padding:0 14px 14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
-.adv .ib>div{display:flex;flex-direction:column;gap:4px}
-.adv .ib label{font-size:12px;color:var(--sub)}
-.adv .ckcol{display:flex;flex-wrap:wrap;gap:8px 14px}
+.ckcol{display:flex;flex-wrap:wrap;gap:8px 14px}
 .ck{flex-direction:row;align-items:center;gap:6px;color:var(--ink);font-size:13px;margin:2px 0}
 
 .mkr{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
 .mkr .m{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;background:var(--bg);border:1px solid var(--line);border-radius:999px;font-size:12.5px}
 .mkr .m .sw{display:inline-block;width:10px;height:10px;border-radius:2px}
 .mkr .m button{border:0;background:none;color:var(--sub);font-size:14px;cursor:pointer;padding:0 2px}
-.mkr .m button:hover{color:var(--bad)}
 
 .pv-take{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:14px;background:color-mix(in srgb,var(--acc) 10%,var(--card));border:1px solid var(--acc);border-radius:12px;margin:0 0 18px}
 .pv-take .big{font-size:20px;font-weight:700}
@@ -91,52 +75,31 @@ button.danger{background:var(--bad);color:#fff}
   animation: slideIn 0.3s ease-out;
   z-index: 1000;
 }
-.toast.error {
-  background: var(--bad);
-}
+.toast.error { background: var(--bad); }
 @keyframes slideIn {
   from { transform: translateX(400px); opacity: 0; }
   to { transform: translateX(0); opacity: 1; }
 }
 
-#auth{position:fixed;inset:0;background:var(--bg);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px}
-#auth .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:26px;max-width:380px;width:100%;box-shadow:0 8px 30px rgba(0,0,0,.08)}
-#auth h1{font-size:19px;margin:0 0 6px}
-#auth input{width:100%;font:inherit;padding:9px 12px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink);margin:0 0 6px}
-#auth .err{color:var(--bad);font-size:12.5px;min-height:20px;margin:0 0 6px}
-main.app-hidden{display:none}
-
 .sheet{overflow-x:auto;max-height:70vh}
 table.sheet{border-collapse:separate;border-spacing:0;font-size:11px;min-width:0}
-.sheet th,.sheet td{border:0;border-right:1px dotted var(--line);border-bottom:1px dotted var(--line);padding:1px 2px;min-width:36px;height:20px;line-height:1.3;text-align:center;vertical-align:middle;background:var(--card);font-weight:400}
-.sheet td.lo{background:#fdecec}
-.sheet td.sel{outline:2px solid var(--acc);outline-offset:-2px}
+.sheet th,.sheet td{border:0;border-right:1px dotted var(--line);border-bottom:1px dotted var(--line);padding:4px;min-width:36px;height:24px;line-height:1.3;text-align:center;vertical-align:middle;background:var(--card);font-weight:400}
 </style>
 </head>
 <body>
-
-<div id="auth" role="dialog" aria-label="管理者ログイン">
- <div class="card">
-  <h1>管理者ログイン</h1>
-  <p id="authMsg"></p>
-  <input type="password" id="authPw" placeholder="パスコード" autocomplete="current-password">
-  <div class="err" id="authErr" aria-live="polite"></div>
-  <button id="authBtn" style="width:100%"></button>
- </div>
-</div>
 
 <div class="page-shell">
   <aside class="sidebar">
     <div class="brand">シフト調整</div>
     <nav class="side-nav">
-      <button data-screen="setup"><span>⚙️</span>初期設定</button>
+      <button data-screen="setup" class="active"><span>⚙️</span>初期設定</button>
       <button data-screen="rules"><span>📋</span>ルール設定</button>
       <button data-screen="monthly"><span>📅</span>月次業務</button>
     </nav>
   </aside>
 
   <div class="main-wrap">
-    <main id="app" class="app-hidden">
+    <main id="app">
 
       <!-- ===== 初期設定画面 ===== -->
       <section id="setup" class="screen active">
@@ -145,7 +108,7 @@ table.sheet{border-collapse:separate;border-spacing:0;font-size:11px;min-width:0
 
         <div class="settings">
           <div class="panel">
-            <div><h2>院の設定</h2></div>
+            <h2>院の設定</h2>
             <table class="tbl" id="tblCl">
               <thead><tr><th style="width:24%">院名</th><th style="width:14%">必要人数</th><th style="width:18%">休診曜日</th><th style="width:14%">優先度</th><th>曜日別の人数（例：土3/金2）</th><th style="width:32px"></th></tr></thead>
               <tbody></tbody>
@@ -154,7 +117,7 @@ table.sheet{border-collapse:separate;border-spacing:0;font-size:11px;min-width:0
           </div>
 
           <div class="panel">
-            <div><h2>医師の設定</h2></div>
+            <h2>医師の設定</h2>
             <table class="tbl" id="tblDr">
               <thead><tr><th style="width:18%">氏名</th><th style="width:13%">区分</th><th style="width:11%">月の上限</th><th>入れる院（優先順に / 区切り）</th><th style="width:11%">土日祝</th><th>メール（任意）</th><th style="width:32px"></th></tr></thead>
               <tbody></tbody>
@@ -185,7 +148,7 @@ table.sheet{border-collapse:separate;border-spacing:0;font-size:11px;min-width:0
           <h2>マーク（シフト表で使用）</h2>
           <div class="mkr" id="mkrChips"></div>
           <div class="mkr" style="margin-top:14px;border-top:1px solid var(--line);padding-top:10px">
-            <div class="add" style="gap:6px;flex-wrap:wrap">
+            <div class="add" style="display:flex;gap:6px;flex-wrap:wrap">
               <input type="text" id="mkNew" placeholder="ラベル（例：22時まで可）">
               <select id="mkCol"><option>青</option><option>緑</option><option>橙</option><option>紫</option><option>赤</option></select>
               <button id="mkAdd">＋ 追加</button>
@@ -239,10 +202,6 @@ table.sheet{border-collapse:separate;border-spacing:0;font-size:11px;min-width:0
           <div class="scroll sheet"><table id="tb" class="sheet"></table></div>
           <span class="mut" id="ex" style="font-size:12.5px;display:block;margin:10px 0"></span>
 
-          <h2 style="margin-top:30px">問題点と交渉</h2>
-          <div class="legend" id="isum"></div>
-          <div class="scroll"><table id="iss"></table></div>
-
           <h2 style="margin-top:30px">Dr別の出勤日数</h2>
           <div class="scroll"><table id="t2"></table></div>
         </div>
@@ -252,12 +211,26 @@ table.sheet{border-collapse:separate;border-spacing:0;font-size:11px;min-width:0
   </div>
 </div>
 
+<textarea id="_cl" style="display:none">B岡山,2,日,1,土3
+B天神,1,日,2</textarea>
+<textarea id="_dr" style="display:none">Dr.A,常勤,20,B岡山/B天神,Y,
+Dr.B,常勤,20,B岡山/B天神,Y,</textarea>
+<textarea id="_off" style="display:none"></textarea>
+<textarea id="_av" style="display:none"></textarea>
+<textarea id="_mk" style="display:none"></textarea>
+
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <script>
 const $=id=>document.getElementById(id),WD="日月火水木金土",LK="shiftApp:v3:";
 const lines=s=>s.split("\n").map(l=>l.trim()).filter(Boolean),toks=(s,c)=>(s||"").split(c).map(x=>x.trim()).filter(Boolean);
-const COL={青:"#2563eb",緑:"#16a34a",橙:"#ea580c",紫:"#7c3aed",赤:"#dc2626"},ST=["未対応","打診中","合意","変更済","対応不要"];
-const S={slots:null,marks:{},neg:{},C:null,ISS:[]};
+const COL={青:"#2563eb",緑:"#16a34a",橙:"#ea580c",紫:"#7c3aed",赤:"#dc2626"};
+const S={slots:null,marks:{},neg:{},C:null};
+
+// 安全なLocalStorageラッパー
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch(e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch(e) {} }
+};
 
 function showToast(msg, isError = false) {
   const t = document.createElement("div");
@@ -281,7 +254,8 @@ function parseDays(s){
 }
 
 function ctx(){
- const[y,m]=$("ym").value.split("-").map(Number),days=new Date(y,m,0).getDate(),pl=l=>l.split(",").map(x=>x.trim());
+ const ymVal = $("ym").value || new Date().toISOString().slice(0,7);
+ const[y,m]=ymVal.split("-").map(Number),days=new Date(y,m,0).getDate(),pl=l=>l.split(",").map(x=>x.trim());
  const cl=lines($("_cl").value).map((l,i)=>{const p=pl(l),by={};toks(p[4],"/").forEach(t=>{const k=WD.indexOf(t[0]);if(k>=0&&t.length>1&&!isNaN(+t.slice(1)))by[k]=+t.slice(1)});return{name:p[0],need:+p[1]||1,closed:[...(p[2]||"")].map(c=>WD.indexOf(c)).filter(k=>k>=0),pri:+p[3]||i+1,by}});
  const dr=lines($("_dr").value).map(l=>{const p=pl(l);return{name:p[0],role:p[1]||"常勤",max:+p[2]||20,cl:toks(p[3],"/"),wk:(p[4]||"Y").toUpperCase()!=="N",mail:p[5]||"",off:new Set(),av:new Set()}});
  ["off","av"].forEach(k=>lines($("_"+k).value).forEach(l=>{const i=l.indexOf(","),x=dr.find(z=>z.name===l.slice(0,i).trim());if(x)parseDays(l.slice(i+1)).forEach(v=>x[k].add(v))}));
@@ -293,12 +267,11 @@ function ctx(){
 }
 
 const works=(C,sl)=>{const W=C.dr.map(()=>Array.from({length:C.days+1},()=>[]));sl.forEach((s,ci)=>{for(let d=1;d<=C.days;d++)s[d].forEach(di=>W[di][d].push(ci))});return W};
-const dl=(C,d)=>d+"日("+WD[C.wd(d)]+")";
 
 const RULES=[
-{id:"short",name:"必要人数に届かない",on:1,check:({C,sl,W})=>{const o=[];C.cl.forEach((c,ci)=>{for(let d=1;d<=C.days;d++){const n=C.need(c,d),k=sl[ci][d].length;if(k>=n)continue;const cands=C.dr.map((x,i)=>i).filter(i=>C.dr[i].cl.includes(c.name)&&!W[i][d].length);o.push({day:d,ci,msg:`${c.name} ${dl(C,d)} 必要${n}名・現在${k}名`,cands})}});return o}},
-{id:"streak",name:"連勤の上限超過",on:1,check:({C,W})=>{const o=[];C.dr.forEach((x,di)=>{let a=0,len=0;for(let d=1;d<=C.days+1;d++){if(d<=C.days&&W[di][d].length){if(!len)a=d;len++}else{if(len>C.mc)o.push({day:a,di,msg:`${x.name} ${a}〜${a+len-1}日 ${len}連勤（上限${C.mc}日）`,cands:[di]});len=0}}});return o}},
-{id:"we",name:"土日祝の勤務不可",on:1,check:({C,W})=>{const o=[];C.dr.forEach((x,di)=>{if(x.wk)return;for(let d=1;d<=C.days;d++)if(C.we(d)&&W[di][d].length)o.push({day:d,di,msg:`${x.name} ${dl(C,d)}は土日祝の勤務不可です`,cands:[di]})});return o}}
+{id:"short",name:"必要人数に届かない",on:1},
+{id:"streak",name:"連勤の上限超過",on:1},
+{id:"we",name:"土日祝の勤務不可",on:1}
 ];
 
 $("rules").innerHTML=RULES.map(r=>`<label class="ck"><input type="checkbox" id="r_${r.id}" ${r.on?"checked":""}>${r.name}</label>`).join("");
@@ -325,7 +298,7 @@ function auto(C){
 function render(){
  const C=ctx();S.C=C;const sl=S.slots;
  if(!sl||!$("tb")){return}
- const{cl,dr,days,y,m,wd}=C,W=works(C,sl);
+ const{cl,dr,days}=C,W=works(C,sl);
  const cnt=dr.map((x,di)=>W[di].filter(a=>a.length).length);
  
  let h='<tr><th>医院</th>';
@@ -344,83 +317,65 @@ function render(){
  $("out").hidden=false;
 }
 
-const getSet=()=>{const s={};["_cl","_dr","mc","wl","hol","_mk"].forEach(k=>s[k]=$(k).value);s.rules=JSON.stringify(Object.fromEntries(RULES.map(r=>[r.id,$("r_"+r.id).checked])));return s};
-const putSet=v=>{if(!v)return;["_cl","_dr","mc","wl","hol","_mk"].forEach(k=>{if(v[k])$(k).value=v[k]});try{const r=JSON.parse(v.rules\vert{}\vert{}"{}");RULES.forEach(x=>{if(r[x.id]!=null)$("r_"+x.id).checked=!!r[x.id]})}catch(e){}
+const getSet=()=>{const s={};["_cl","_dr","mc","wl","hol","_mk"].forEach(k=>s[k]=$(k).value);return s};
+const putSet=v=>{if(!v)return;["_cl","_dr","mc","wl","hol","_mk"].forEach(k=>{if(v[k])$(k).value=v[k]});
  buildClRows($("_cl").value);buildDrRows($("_dr").value);renderMkr($("_mk").value);
 };
 
-function saveSet(){
-  try{localStorage.setItem(LK+"set",JSON.stringify(getSet()))}catch(e){}
-}
+function saveSet(){ store.set(LK+"set",JSON.stringify(getSet())); }
 
-function monthJson(){const C=ctx(),slots={};if(S.slots)C.cl.forEach((c,ci)=>{slots[c.name]={};for(let d=1;d<=C.days;d++)if(S.slots[ci][d].length)slots[c.name][d]=S.slots[ci][d].map(i=>C.dr[i].name)});return JSON.stringify({has:!!S.slots,slots,marks:S.marks,neg:S.neg})}
+function monthJson(){const C=ctx(),slots={};if(S.slots)C.cl.forEach((c,ci)=>{slots[c.name]={};for(let d=1;d<=C.days;d++)if(S.slots[ci][d].length)slots[c.name][d]=S.slots[ci][d].map(i=>C.dr[i].name)});return JSON.stringify({has:!!S.slots,slots})}
 
-function saveMonth(){
-  const k=$("ym").value,js=monthJson();
-  try{localStorage.setItem(LK+"m:"+k,js)}catch(e){}
-}
+function saveMonth(){ const k=$("ym").value; store.set(LK+"m:"+k,monthJson()); }
 
-async function loadMonth(){
-  const k=$("ym").value;
-  let js=null;
-  try{js=localStorage.getItem(LK+"m:"+k)}catch(e){}
-  S.slots=null;S.marks={};S.neg={};
-  if(js){try{const o=JSON.parse(js),C=ctx();
-    if(o.has){S.slots=C.cl.map(()=>Array.from({length:C.days+1},()=>[]));Object.entries(o.slots||{}).forEach(([cn,ds])=>{const ci=C.cl.findIndex(c=>c.name===cn);if(ci<0)return;Object.entries(ds).forEach(([d,ns])=>{S.slots[ci][d]=ns.map(n=>C.dr.findIndex(x=>x.name===n)).filter(i=>i>=0)})})}
-    S.marks=o.marks||{};S.neg=o.neg||{}}catch(e){}}
+function loadMonth(){
+  const k=$("ym").value, js=store.get(LK+"m:"+k);
+  S.slots=null;
+  if(js){
+    try{
+      const o=JSON.parse(js),C=ctx();
+      if(o.has){
+        S.slots=C.cl.map(()=>Array.from({length:C.days+1},()=>[]));
+        Object.entries(o.slots||{}).forEach(([cn,ds])=>{
+          const ci=C.cl.findIndex(c=>c.name===cn);
+          if(ci>=0) Object.entries(ds).forEach(([d,ns])=>{S.slots[ci][d]=ns.map(n=>C.dr.findIndex(x=>x.name===n)).filter(i=>i>=0)})
+        });
+      }
+    }catch(e){}
+  }
   render();
 }
-
-const hashPw=s=>{let h1=0xdeadbeef,h2=0x41c6ce57;for(let i=0;i<s.length;i++){const c=s.charCodeAt(i);h1=Math.imul(h1^c,2654435761);h2=Math.imul(h2^c,1597334677)}h1=Math.imul(h1^(h1>>>16),2246822507);h1^=Math.imul(h2^(h2>>>13),3266489909);h2=Math.imul(h2^(h2>>>16),2246822507);h2^=Math.imul(h1^(h1>>>13),3266489909);return (h2>>>0).toString(16)+(h1>>>0).toString(16)};
-
-(function(){
- const a=document.getElementById("auth"),ap=document.getElementById("app");
- // ★修正: ログイン済みセッション時にも initApp() を呼ぶように変更
- if(sessionStorage.getItem("shiftApp:session")==="1"){a.remove();ap.classList.remove("app-hidden");initApp();return}
- const AK="shiftApp:passHash",saved=localStorage.getItem(AK),first=!saved;
- $("authMsg").textContent=first?"初回利用です。管理者用のパスコードを設定してください（4文字以上）。":"このアプリは管理者専用です。パスコードを入力してください。";
- $("authBtn").textContent=first?"パスコードを設定して利用開始":"ログイン";
- const go=()=>{const v=$("authPw").value;
-  if(!v){$("authErr").textContent="パスコードを入力してください";return}
-  if(first){
-   if(v.length<4){$("authErr").textContent="パスコードは4文字以上にしてください";return}
-   localStorage.setItem(AK,hashPw(v));sessionStorage.setItem("shiftApp:session","1");
-   a.remove();ap.classList.remove("app-hidden");initApp();return}
-  if(hashPw(v)===saved){sessionStorage.setItem("shiftApp:session","1");a.remove();ap.classList.remove("app-hidden");initApp()}
-  else{$("authErr").textContent="パスコードが違います"}};
- $("authBtn").onclick=go;
- $("authPw").addEventListener("keydown",e=>{if(e.key==="Enter")go()});
-})();
 
 function initApp(){
   const n0=new Date(),nm=new Date(n0.getFullYear(),n0.getMonth()+1,1);
   $("ym").value=nm.getFullYear()+"-"+String(nm.getMonth()+1).padStart(2,"0");
-  try{putSet(JSON.parse(localStorage.getItem(LK+"set")||"null"))}catch(e){}
   
-  buildClRows($("_cl").value);
-  buildDrRows($("_dr").value);
+  try{ putSet(JSON.parse(store.get(LK+"set")||"null")); }catch(e){}
+  
+  if(!document.querySelector("#tblCl tbody").children.length) buildClRows($("_cl").value);
+  if(!document.querySelector("#tblDr tbody").children.length) buildDrRows($("_dr").value);
   buildOffRows($("_off").value,"tblOff");
   buildOffRows($("_av").value,"tblAv");
   renderMkr($("_mk").value);
   
-  // ★修正: 追加ボタンのクリックイベントを設定
-  $("addCl").onclick=()=>{document.querySelector("#tblCl tbody").appendChild(clRow(["","","","",""]))};
-  $("addDr").onclick=()=>{document.querySelector("#tblDr tbody").appendChild(drRow(["","常勤","","","Y",""]))};
-  $("addOff").onclick=()=>{document.querySelector("#tblOff tbody").appendChild(offRow("tblOff",["",""]))};
-  $("addAv").onclick=()=>{document.querySelector("#tblAv tbody").appendChild(offRow("tblAv",["",""]))};
-
+  // ナビゲーション切り替え
   document.querySelectorAll(".side-nav button").forEach(btn=>{
-    btn.addEventListener("click",()=>{
+    btn.onclick=()=>{
       document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
       document.querySelectorAll(".side-nav button").forEach(b=>b.classList.remove("active"));
       $(btn.dataset.screen).classList.add("active");
       btn.classList.add("active");
-    });
+    };
   });
-  document.querySelector(".side-nav button").click();
+  
+  // 行追加ボタン
+  $("addCl").onclick=()=>{ document.querySelector("#tblCl tbody").appendChild(clRow(["","","","",""])); syncCsv(); saveSet(); };
+  $("addDr").onclick=()=>{ document.querySelector("#tblDr tbody").appendChild(drRow(["","常勤","","","Y",""])); syncCsv(); saveSet(); };
+  $("addOff").onclick=()=>{ document.querySelector("#tblOff tbody").appendChild(offRow("tblOff",["",""])); syncCsv(); saveMonth(); };
+  $("addAv").onclick=()=>{ document.querySelector("#tblAv tbody").appendChild(offRow("tblAv",["",""])); syncCsv(); saveMonth(); };
   
   ["_cl","_dr","mc","wl","hol","_mk"].forEach(id=>{const el=$(id);if(el)el.addEventListener("input",saveSet)});
-  ["_off","_av"].forEach(id=>{const el=$(id);if(el)el.addEventListener("input",()=>{saveMonth();loadMonth()})});
+  ["_off","_av"].forEach(id=>{const el=$(id);if(el)el.addEventListener("input",()=>{syncCsv();saveMonth();loadMonth()})});
   
   $("ym").addEventListener("change",loadMonth);
   $("go").onclick=async()=>{
@@ -435,10 +390,11 @@ function initApp(){
     }catch(e){showToast("エラー："+e.message,true)}
   };
   
-  $("regen").onclick=()=>{if(!confirm("手動修正はリセットされます。もう一度自動作成しますか？"))return;S.slots=auto(S.C);render()};
+  $("regen").onclick=()=>{if(!confirm("もう一度自動作成しますか？"))return;S.slots=auto(S.C);render()};
   
   $("xl").onclick=async()=>{
     if(!S.slots){showToast("先にシフト案を作成してください",true);return}
+    if(typeof ExcelJS === "undefined"){showToast("Excelライブラリの読み込みに失敗しました",true);return}
     const C=S.C,sl=S.slots;
     const wb=new ExcelJS.Workbook(),ws=wb.addWorksheet("シフト表");
     ws.columns=["医院",...Array.from({length:C.days},(_,i)=>({header:String(i+1).padStart(2,"0")}))];
@@ -454,7 +410,6 @@ function initApp(){
 function COLOR_HEX(){return{青:"#2563eb",緑:"#2ea043",橙:"#e08a3c",紫:"#8b5cf6",赤:"#c0262d"}}
 function escA(s){return String(s||"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
 
-// ★修正: 空欄項目がある場合にカンマの要素数がズレないように修正
 function rowsCsv(id){
   return Array.from(document.querySelectorAll("#"+id+" tbody tr")).map(tr=>{
     const inputs = Array.from(tr.querySelectorAll("td input, td select"));
@@ -488,14 +443,12 @@ function addMkr(label,color){if(!label)return;const box=$("mkrChips");if(Array.f
 
 $("mkAdd").onclick=()=>{const v=$("mkNew").value.trim(),col=$("mkCol").value;if(!v)return;addMkr(v,col);$("mkNew").value=""};
 $("mkNew").addEventListener("keydown",e=>{if(e.key==="Enter"){$("mkAdd").click()}});
-</script>
 
-<textarea id="_cl" style="display:none">B岡山,2,日,1,土3
-B天神,1,日,2</textarea>
-<textarea id="_dr" style="display:none">Dr.A,常勤,20,B岡山/B天神,Y,
-Dr.B,常勤,20,B岡山/B天神,Y,</textarea>
-<textarea id="_off" style="display:none"></textarea>
-<textarea id="_av" style="display:none"></textarea>
-<textarea id="_mk" style="display:none"></textarea>
+// アプリ起動
+window.addEventListener("DOMContentLoaded", initApp);
+if (document.readyState === "complete" || document.readyState === "interactive") {
+  initApp();
+}
+</script>
 </body>
 </html>
