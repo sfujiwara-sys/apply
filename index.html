@@ -25,7 +25,7 @@ p.lead{margin:0 0 18px;color:var(--sub)}
 .box{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px}
 textarea{width:100%;min-height:130px;font:13px/1.55 ui-monospace,Menlo,Consolas,monospace;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px;resize:vertical}
 label{font-size:13px;color:var(--sub);display:flex;flex-direction:column;gap:3px}
-input[type=month],input[type=number],input[type=text],input[type=email]{font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)}
+input[type=month],input[type=number],input[type=text],input[type=email],input[type=password]{font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)}
 button{font:inherit;font-weight:600;padding:9px 18px;border:0;border-radius:6px;background:var(--acc);color:var(--accfg);cursor:pointer}
 button:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 .scroll{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--card)}
@@ -81,12 +81,33 @@ button.xl{background:#1f6feb;color:#fff}
   to { transform: translateX(0); opacity: 1; }
 }
 
+#auth{position:fixed;inset:0;background:var(--bg);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px}
+#auth .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:26px;max-width:380px;width:100%;box-shadow:0 8px 30px rgba(0,0,0,.08)}
+#auth h1{font-size:19px;margin:0 0 6px}
+#auth input{width:100%;font:inherit;padding:9px 12px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink);margin:0 0 6px}
+#auth .err{color:var(--bad);font-size:12.5px;min-height:20px;margin:0 0 6px}
+main.app-hidden{display:none}
+
 .sheet{overflow-x:auto;max-height:70vh}
 table.sheet{border-collapse:separate;border-spacing:0;font-size:11px;min-width:0}
 .sheet th,.sheet td{border:0;border-right:1px dotted var(--line);border-bottom:1px dotted var(--line);padding:4px;min-width:36px;height:24px;line-height:1.3;text-align:center;vertical-align:middle;background:var(--card);font-weight:400}
 </style>
 </head>
 <body>
+
+<!-- ログインモーダル -->
+<div id="auth" role="dialog" aria-label="管理者ログイン">
+ <div class="card">
+  <h1>管理者ログイン</h1>
+  <p id="authMsg"></p>
+  <input type="password" id="authPw" placeholder="パスコード" autocomplete="current-password">
+  <div class="err" id="authErr" aria-live="polite"></div>
+  <button id="authBtn" style="width:100%"></button>
+  <div style="margin-top:12px;text-align:right;">
+    <button id="resetPwBtn" type="button" class="ghost" style="font-size:11px;padding:4px 8px;">パスコードをリセット</button>
+  </div>
+ </div>
+</div>
 
 <div class="page-shell">
   <aside class="sidebar">
@@ -99,7 +120,7 @@ table.sheet{border-collapse:separate;border-spacing:0;font-size:11px;min-width:0
   </aside>
 
   <div class="main-wrap">
-    <main id="app">
+    <main id="app" class="app-hidden">
 
       <!-- ===== 初期設定画面 ===== -->
       <section id="setup" class="screen active">
@@ -226,10 +247,14 @@ const lines=s=>s.split("\n").map(l=>l.trim()).filter(Boolean),toks=(s,c)=>(s||""
 const COL={青:"#2563eb",緑:"#16a34a",橙:"#ea580c",紫:"#7c3aed",赤:"#dc2626"};
 const S={slots:null,marks:{},neg:{},C:null};
 
-// 安全なLocalStorageラッパー
+// 安全なストレージアクセスラッパー（エラー停止防止）
+const memStore = {};
 const store = {
-  get(k) { try { return localStorage.getItem(k); } catch(e) { return null; } },
-  set(k, v) { try { localStorage.setItem(k, v); } catch(e) {} }
+  get(k) { try { return localStorage.getItem(k); } catch(e) { return memStore[k]||null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch(e) { memStore[k]=v; } },
+  remove(k) { try { localStorage.removeItem(k); } catch(e) { delete memStore[k]; } },
+  getS(k) { try { return sessionStorage.getItem(k); } catch(e) { return memStore["s:"+k]||null; } },
+  setS(k, v) { try { sessionStorage.setItem(k, v); } catch(e) { memStore["s:"+k]=v; } }
 };
 
 function showToast(msg, isError = false) {
@@ -346,6 +371,65 @@ function loadMonth(){
   render();
 }
 
+const hashPw=s=>{let h1=0xdeadbeef,h2=0x41c6ce57;for(let i=0;i<s.length;i++){const c=s.charCodeAt(i);h1=Math.imul(h1^c,2654435761);h2=Math.imul(h2^c,1597334677)}h1=Math.imul(h1^(h1>>>16),2246822507);h1^=Math.imul(h2^(h2>>>13),3266489909);h2=Math.imul(h2^(h2>>>16),2246822507);h2^=Math.imul(h1^(h1>>>13),3266489909);return (h2>>>0).toString(16)+(h1>>>0).toString(16)};
+
+// ログイン認証制御
+function checkAuth(){
+ const a=$("auth"), ap=$("app"), AK="shiftApp:passHash";
+ if(store.getS("shiftApp:session")==="1"){
+   if(a) a.style.display="none";
+   if(ap) ap.classList.remove("app-hidden");
+   initApp();
+   return;
+ }
+ 
+ let saved = store.get(AK);
+ let first = !saved;
+ 
+ const refreshUI = () => {
+   saved = store.get(AK);
+   first = !saved;
+   $("authMsg").textContent = first ? "初回利用です。管理者用のパスコードを設定してください（4文字以上）。" : "このアプリは管理者専用です。パスコードを入力してください。";
+   $("authBtn").textContent = first ? "パスコードを設定して利用開始" : "ログイン";
+   $("authErr").textContent = "";
+   $("authPw").value = "";
+ };
+ 
+ refreshUI();
+ 
+ const go = () => {
+  const v=$("authPw").value;
+  if(!v){$("authErr").textContent="パスコードを入力してください";return}
+  if(first){
+   if(v.length<4){$("authErr").textContent="パスコードは4文字以上にしてください";return}
+   store.set(AK, hashPw(v));
+   store.setS("shiftApp:session","1");
+   a.style.display="none";
+   ap.classList.remove("app-hidden");
+   initApp();
+   return;
+  }
+  if(hashPw(v)===saved){
+   store.setS("shiftApp:session","1");
+   a.style.display="none";
+   ap.classList.remove("app-hidden");
+   initApp();
+  } else {
+   $("authErr").textContent="パスコードが違います";
+  }
+ };
+ 
+ $("authBtn").onclick = go;
+ $("authPw").onkeydown = e => { if(e.key==="Enter") go(); };
+ $("resetPwBtn").onclick = () => {
+   if(confirm("登録済みのパスコードをリセットしますか？")){
+     store.remove(AK);
+     refreshUI();
+     $("authErr").textContent = "パスコードをリセットしました。新しいパスコードを設定してください。";
+   }
+ };
+}
+
 function initApp(){
   const n0=new Date(),nm=new Date(n0.getFullYear(),n0.getMonth()+1,1);
   $("ym").value=nm.getFullYear()+"-"+String(nm.getMonth()+1).padStart(2,"0");
@@ -445,9 +529,9 @@ $("mkAdd").onclick=()=>{const v=$("mkNew").value.trim(),col=$("mkCol").value;if(
 $("mkNew").addEventListener("keydown",e=>{if(e.key==="Enter"){$("mkAdd").click()}});
 
 // アプリ起動
-window.addEventListener("DOMContentLoaded", initApp);
+window.addEventListener("DOMContentLoaded", checkAuth);
 if (document.readyState === "complete" || document.readyState === "interactive") {
-  initApp();
+  checkAuth();
 }
 </script>
 </body>
