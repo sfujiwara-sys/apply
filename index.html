@@ -1,1092 +1,351 @@
-/**
- * 医療機関向け シフト自動割り振り＆管理アプリ（統合版）
- * シート構成：先生マスター／医院マスター／必要人数_例外／出勤可能リスト／
- *            シフト明細／シフト表／充足状況／設定・祝日／エラー一覧（自動作成）
- */
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>シフト自動割り振りアプリ</title>
+<style>
+:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#f3f5f4;--card:#fff;--tx:#1d2a27;--mut:#667370;--line:#d8dfdd;--pri:#0f766e;--prt:#fff;--bad:#b42318;
+--wait:#e4e7e6;--off:#fbe0dc;--help:#d99a1e;
+--c0:#d6ecf7;--c1:#dcefd9;--c2:#f6e3cf;--c3:#e6dcf3;--c4:#f5d9e3;--c5:#e3ecc9}
 
-// ============================================================
-// 設定
-// ============================================================
-const CONFIG = {
-  SHEET: {
-    TEACHER:   '先生マスター',
-    CLINIC:    '医院マスター',
-    EXCEPTION: '必要人数_例外',
-    AVAIL:     '出勤可能リスト',
-    DETAIL:    'シフト明細',
-    CALENDAR:  'シフト表',
-    STATUS:    '充足状況',
-    SETTING:   '設定・祝日',
-  },
-  // 出張可否が「先生マスター」にも「出勤可能リスト」にも未入力のときの扱い
-  DEFAULT_HELP_OK: false,
-  // 再実行しても上書きしない確定状態
-  LOCKED_STATES: ['確定', '手動修正'],
-  DETAIL_COLS: 12,
-};
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.6 system-ui,-apple-system,"Hiragino Sans","Yu Gothic UI",Meiryo,sans-serif}
+header{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;padding:14px 16px 8px}
+h1{font-size:18px;margin:0;flex:1 1 auto}
+header label{color:var(--mut);display:flex;align-items:center;gap:6px}
+.app{display:flex;align-items:flex-start}
+nav{display:flex;flex-direction:column;gap:2px;width:140px;flex:0 0 auto;padding:8px 0;border-right:1px solid var(--line);position:sticky;top:0;align-self:stretch}
+.tab{background:none;border:0;border-left:4px solid transparent;padding:10px 14px;color:var(--mut);font:inherit;cursor:pointer;text-align:left}
+.tab.on{color:var(--tx);border-left-color:var(--pri);background:var(--card);font-weight:700}
+main{padding:14px 16px 40px;flex:1 1 auto;min-width:0}
+@media (max-width:640px){nav{width:88px}.tab{padding:10px 8px;font-size:13px}main{padding:10px 8px 40px}}
+button,input,select{font:inherit;color:inherit}
+input,select{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:4px 6px;min-width:56px}
+input[type=number]{width:64px}
+input[type=checkbox]{min-width:0;width:18px;height:18px}
+button.b{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:6px 12px;cursor:pointer}
+button.p{background:var(--pri);color:var(--prt);border:0;border-radius:6px;padding:8px 16px;font-weight:700;cursor:pointer}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--pri);outline-offset:1px}
+.bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin-bottom:12px}
+.mut{color:var(--mut)}
+.wrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--card);max-width:100%}
+table{border-collapse:collapse}
+th,td{border:1px solid var(--line);padding:3px 6px;text-align:center;white-space:nowrap}
+th{background:var(--bg);font-weight:600}
+.g td:first-child,.g th:first-child{position:sticky;left:0;background:var(--card);z-index:1;text-align:left;font-weight:600}
+.g th:first-child{background:var(--bg)}
+.g td.cell{cursor:pointer;min-width:38px;user-select:none}
+.sat{color:#2563eb}.sun{color:#d92d20}
+.o{background:var(--c1)}.x{background:var(--off)}.w{background:var(--wait);color:var(--mut)}
+.c0{background:var(--c0)}.c1{background:var(--c1)}.c2{background:var(--c2)}.c3{background:var(--c3)}.c4{background:var(--c4)}.c5{background:var(--c5)}
+.hp{box-shadow:inset 0 -3px 0 var(--help);font-weight:700}
+.stats{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 14px}
+.stat b{display:block;font-size:20px}
+.stat.bad b{color:var(--bad)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 12px;margin:10px 0;font-size:12px}
+.legend span{padding:1px 8px;border-radius:4px;border:1px solid var(--line)}
+.err td:nth-child(5){text-align:left}
+.ok{padding:16px;border:1px solid var(--line);border-radius:8px;background:var(--card)}
+.lv{color:var(--bad);font-weight:700}
 
-// 各シートの列位置（0始まり＝A列が0）
-const COL = {
-  T: { ID: 0, NAME: 1, MAIN: 2, WEEK_MAX: 6, MONTH_MAX: 7, CONSEC_MAX: 8, HELP_OK: 9, STATUS: 13 },
-  C: { ID: 0, NAME: 1, START: 2, END: 3, DOW_FIRST: 6, HOLIDAY: 13, STATUS: 16 }, // G〜M=月〜日, N=祝日
-  E: { DATE: 0, CLINIC: 1, REQ: 2, TYPE: 3 },
-  A: { TEACHER: 2, DATE: 4, KUBUN: 5, START: 6, END: 7, TRIP: 9, TRIP_CLINICS: 10, PREFER: 11, STATUS: 14 },
-  D: { DATE: 0, DOW: 1, CLINIC_ID: 2, CLINIC_NAME: 3, TEACHER_ID: 4, TEACHER_NAME: 5, KIND: 6, START: 7, END: 8, HELP: 9, STATE: 10, NOTE: 11 },
-  H: { DATE: 0, NAME: 1, ALL_CLOSED: 2 },
-};
+:root{--wkS:#dce8f6;--wkU:#f7dde2}
 
-const DOW_LABELS = ['月', '火', '水', '木', '金', '土', '日'];
-const WORK_KINDS = ['通常', '遅番', 'ヘルプ'];
+.gm{font-size:12px}.gm th,.gm td{padding:2px 4px}
+.gm td.cell{min-width:42px;height:24px;cursor:pointer}
+.gm th.ws,.gm td.ws{background:var(--wkS)}.gm th.wu,.gm td.wu{background:var(--wkU)}
+.gm td.sh{background:var(--off)}.gm td.mn{background:var(--wait)}
+.gm tr.last>*{border-bottom:2px solid #9aa8a4}
+.gm .tot{font-weight:600}.gm .sumr th,.gm .sumr td{background:var(--bg)}
+.gm th.cn{min-width:56px}
+.legend .lw{background:var(--wkS)}.legend .lu{background:var(--wkU)}.legend .ls{background:var(--off)}.legend .lm{background:var(--wait)}
+.rule{display:flex;gap:12px;align-items:flex-start;padding:10px 14px;border-bottom:1px solid var(--line);cursor:pointer}
+.rule:last-child{border-bottom:0}.rule input{margin-top:4px}.rule .tag{margin-left:auto;font-size:12px;color:var(--mut);white-space:nowrap}
+h2{font-size:15px;margin:22px 0 8px}
+</style>
+</head>
+<body>
+<header>
+  <h1>シフト自動割り振りアプリ</h1>
+  <label>対象月 <input type="month" id="ym"></label>
+</header>
+<div class="app"><nav id="nav"></nav><main id="v"></main></div>
+<script>
+const DW=['月','火','水','木','金','土','日'];
+const TABS=[['s','シフト表'],['h','希望入力'],['t','先生'],['c','医院'],['r','ルール'],['k','ルールチェック']];
+const q=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+let S,tab='s';
 
-// ルール違反チェック用の設定
-const RULE = {
-  SHEET_ERROR: 'エラー一覧',
-  CONSEC_DEFAULT: 6,      // 先生マスターの連勤上限が空欄の場合に使う上限日数
-  MOVE_MIN_MINUTES: 60,   // 別の医院へ移動する際に最低限必要な間隔（分）
-  LOOKBACK_DAYS: 14,      // 連続出勤の判定で、対象月より前に遡って見る日数
-};
-const CHECK_TYPE_ORDER = { '連続出勤': 1, '人数不足': 2, '無理な移動': 3 };
-
-// ============================================================
-// メニュー
-// ============================================================
-function onOpen() {
-  const ui = SpreadsheetApp.getUi();
-  ui.createMenu('シフト管理')
-    .addItem('シフトを自動配置する', 'autoAssignShifts')
-    .addToUi();
-  ui.createMenu('ルール違反チェック')
-    .addItem('ルール違反をチェックする', 'runRuleCheck')
-    .addToUi();
-}
-
-// ============================================================
-// メイン処理：シフト自動配置
-// ============================================================
-function autoAssignShifts() {
-  const startedAt = Date.now();
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const tz = ss.getSpreadsheetTimeZone();
-
-  const target = promptTargetMonth_(tz);
-  if (!target) {
-    console.log('キャンセルされました');
-    return;
-  }
-
-  const lock = LockService.getDocumentLock();
-  if (!lock.tryLock(30000)) {
-    showAlert_('他の処理が実行中です。しばらくしてからもう一度お試しください。');
-    return;
-  }
-
-  try {
-    console.log('===== シフト自動配置 開始：' + target.ym + ' =====');
-    ss.toast('データを読み込んでいます...', 'シフト管理', 5);
-
-    // --- 1. データ読み込み（各シート1〜2回の一括取得） ---
-    const teachers   = loadTeachers_(ss);
-    const clinics    = loadClinics_(ss);
-    const exceptions = loadExceptions_(ss, tz);
-    const holidays   = loadHolidays_(ss, tz);
-    const availByDate = loadAvailability_(ss, tz, target);
-    const detail     = loadDetail_(ss, tz, target);
-
-    console.log('先生: ' + teachers.list.length + '名 / 医院: ' + clinics.list.length +
-      '院 / 例外設定: ' + exceptions.size + '件 / 祝日等: ' + holidays.size +
-      '件 / 希望登録のある日数: ' + availByDate.size + '日 / 確定済み行: ' + detail.locked.length + '行');
-
-    if (teachers.list.length === 0 || clinics.list.length === 0) {
-      showAlert_('先生マスターまたは医院マスターにデータがありません。');
-      return;
+const RULES=[
+['consec','連続出勤の上限を守る','先生タブの「連勤上限」を超えて連続で出勤させない','配置・チェック'],
+['week','週の上限日数を守る','先生タブの「週上限」を超えて出勤させない','配置・チェック'],
+['main','メイン所属院を優先して配置する','まず所属院の必要人数を埋め、余った先生を他院へ回す','配置'],
+['helpOk','他院ヘルプ不可の先生は他院に配置しない','先生タブの「他院ヘルプ可」にチェックがない先生が対象','配置・チェック'],
+['helpPri','応援先は優先順位の順に決める','先生タブの「応援先 第1〜第3」の順に、人手が足りない院へ配置','配置'],
+['helpOnly','応援先は登録した院だけにする','応援先を1つでも登録した先生を、登録外の院へ行かせない','配置・チェック'],
+['balance','稼働日数が少ない先生から先に配置する','特定の先生に出勤が偏らないようにする','配置'],
+['need','各医院の必要人数を満たす','人数が足りない日・医院を表示','チェック'],
+['minDays','医院の最低稼働日数を満たす','月内に1名以上が配置された日数が、医院タブの最低稼働日数以上か','チェック']];
+function defRules(){const o={};RULES.forEach(r=>o[r[0]]=true);return o}
+function seed(){
+  const cl=[['大宮',[3,3,3,3,3,2,0]],['柏',[2,2,2,2,2,1,0]],['新宿',[2,2,2,2,2,2,0]],['渋谷',[2,2,2,2,2,1,0]]].map((c,i)=>({id:'c'+i,name:c[0],req:c[1],min:[20,18,20,18][i]}));
+  const tn=[['山田 太郎',0],['佐藤 花子',0],['鈴木 一郎',0,3],['高橋 美咲',1],['田中 健',1],['伊藤 さくら',1,3],['渡辺 大輔',2],['中村 優子',2],['小林 誠',3],['加藤 彩',3,4]];
+  const th=tn.map((t,i)=>{const hp=![2,5,7].includes(i);return{id:'t'+i,name:t[0],main:'c'+t[1],week:t[2]||5,consec:t[2]||6,help:hp,pri:hp?['c'+((t[1]+1)%4),'c'+((t[1]+2)%4),'']:['','','']}});
+  const av={};let p=0;
+  for(let d=1;d<=30;d++){
+    const dow=(new Date(2026,10,d).getDay()+6)%7,key='2026-11-'+String(d).padStart(2,'0');
+    if(dow<5){
+      th.forEach((t,i)=>{
+        if(i===2&&![0,2,4].includes(dow))return;
+        if(i===5&&![1,3].includes(dow))return;
+        av[t.id+'|'+key]=(i%2===0&&i!==2&&[(i*3)%10,(i*3+4)%10].includes(p))?'x':'o';
+      });p++;
+    }else if(dow===5){
+      (d===7?[0,3,6,8]:d===14?[1,4,7]:[]).forEach(i=>av[th[i].id+'|'+key]='o');
     }
-
-    // --- 2. 割り振り計算（すべてメモリ上で実行） ---
-    ss.toast('割り振りを計算しています...', 'シフト管理', 5);
-    const result = assignMonth_({ target, teachers, clinics, exceptions, holidays, availByDate, lockedRows: detail.locked, tz });
-
-    // --- 3. 書き込み（シートごとに1回の一括書き込み） ---
-    ss.toast('結果を書き込んでいます...', 'シフト管理', 5);
-    const finalRows = writeDetail_(ss, tz, target, detail, result.newRows);
-    writeCalendar_(ss, tz, target, teachers, clinics, finalRows);
-    writeStatus_(ss, tz, result.statusRows);
-
-    // --- 4. サマリーログ ---
-    logSummary_(result, startedAt);
-
-    const s = result.summary;
-    showAlert_(
-      '自動配置が完了しました（' + target.ym + '）\n\n' +
-      '必要枠: ' + s.required + ' / 充足: ' + s.filled + ' / 不足: ' + s.shortage + '\n' +
-      'ヘルプ配置: ' + s.help + '件 / 待機: ' + s.waiting + '件\n\n' +
-      '詳細は「シフト明細」「シフト表」「充足状況」シートをご確認ください。'
-    );
-  } catch (e) {
-    console.error('エラー: ' + e.message + '\n' + e.stack);
-    showAlert_('エラーが発生しました：' + e.message);
-  } finally {
-    lock.releaseLock();
   }
+  const late={};[['t0',[4,11,18]],['t6',[5,12,19]],['t8',[6,13]]].forEach(x=>x[1].forEach(d=>late[x[0]+'|2026-11-'+String(d).padStart(2,'0')]=1));
+  return{ym:'2026-11',clinics:cl,teachers:th,avail:av,late,rules:defRules(),result:null,n:100};
 }
+function norm(){S.rules=Object.assign(defRules(),S.rules||{});S.late=S.late||{};S.teachers.forEach(t=>{if(!t.pri)t.pri=['','','']});S.clinics.forEach(c=>{if(c.min==null)c.min=0})}
+function load(){try{return JSON.parse(localStorage.getItem('shiftapp1'))}catch(e){return null}}
+function save(){try{localStorage.setItem('shiftapp1',JSON.stringify(S))}catch(e){}}
 
-// ============================================================
-// 割り振りロジック
-// ============================================================
-function assignMonth_(ctx) {
-  const { target, teachers, clinics, exceptions, holidays, availByDate, lockedRows, tz } = ctx;
-  const days = buildDays_(target, tz);
-  const dayMap = new Map(days.map(d => [d.key, d]));
-  const clinicMap = new Map(clinics.list.map(c => [c.id, c]));
+function days(){
+  const [y,m]=S.ym.split('-').map(Number),n=new Date(y,m,0).getDate();
+  return[...Array(n)].map((_,i)=>{const d=i+1;return{d,dow:(new Date(y,m-1,d).getDay()+6)%7,key:S.ym+'-'+String(d).padStart(2,'0')}});
+}
+function cname(id){const c=S.clinics.find(c=>c.id===id);return c?c.name:'?'}
+function cidx(id){return Math.max(0,S.clinics.findIndex(c=>c.id===id))}
 
-  // 先生ごとの勤務状況（週・月・連勤の上限チェック用）
-  const stats = new Map();
-  teachers.list.forEach(t => stats.set(t.id, { month: 0, weeks: {}, worked: new Set() }));
-
-  // 確定・手動修正済みの行を先に反映（枠を消費済みとして扱う）
-  const lockedByDate = new Map();
-  lockedRows.forEach(r => {
-    const key = toDateKey_(r[COL.D.DATE], tz);
-    if (!lockedByDate.has(key)) lockedByDate.set(key, []);
-    lockedByDate.get(key).push(r);
-    const day = dayMap.get(key);
-    const st = stats.get(str_(r[COL.D.TEACHER_ID]));
-    if (day && st && WORK_KINDS.indexOf(str_(r[COL.D.KIND])) >= 0) addWork_(st, day);
-  });
-
-  const newRows = [];
-  const statusRows = [];
-  const shortages = [];
-  const waitingLog = [];
-  const warned = new Set();
-  const perClinic = new Map(clinics.list.map(c => [c.id, { name: c.name, required: 0, filled: 0, help: 0 }]));
-  const summary = { required: 0, filled: 0, shortage: 0, help: 0, waiting: 0 };
-
-  days.forEach((day, di) => {
-    // その日の必要人数・配置済み人数
-    const req = new Map();
-    const got = new Map();
-    clinics.list.forEach(c => {
-      req.set(c.id, getRequired_(c, day, holidays, exceptions));
-      got.set(c.id, 0);
+// ---- 自動割り振り：①メイン所属院 → ②不足している他院（ヘルプ）→ ③待機 ----
+function assign(){
+  const D=days(),st={},res={},R=S.rules;
+  S.teachers.forEach(t=>st[t.id]={m:0,w:{},set:new Set()});
+  const wk=i=>Math.floor((i+D[0].dow)/7);
+  D.forEach((day,i)=>{
+    const req={},got={},pool=[];
+    S.clinics.forEach(c=>{req[c.id]=c.req[day.dow]||0;got[c.id]=0});
+    S.teachers.forEach(t=>{
+      const a=S.avail[t.id+'|'+day.key],k=day.key+'|'+t.id;
+      if(!a)return;
+      if(a==='x'){res[k]={k:'休'};return}
+      const s=st[t.id];let streak=0;
+      for(let j=i-1;j>=0&&s.set.has(D[j].key);j--)streak++;
+      if((R.week&&t.week&&(s.w[wk(i)]||0)>=t.week)||(R.consec&&t.consec&&streak>=t.consec)){res[k]={k:'待機'};return}
+      pool.push(t);
     });
-
-    const placed = new Set();
-    (lockedByDate.get(day.key) || []).forEach(r => {
-      placed.add(str_(r[COL.D.TEACHER_ID]));
-      const cid = str_(r[COL.D.CLINIC_ID]);
-      if (WORK_KINDS.indexOf(str_(r[COL.D.KIND])) >= 0 && got.has(cid)) got.set(cid, got.get(cid) + 1);
-    });
-
-    const dayRows = [];
-    const waiting = [];
-    const pool = [];
-
-    // 出勤可能な先生を抽出（希望休は「休み」、上限超過は「待機」）
-    const avail = availByDate.get(day.key);
-    if (avail) {
-      avail.forEach((rec, tid) => {
-        if (placed.has(tid)) return;
-        const t = teachers.map.get(tid);
-        if (!t) {
-          if (!warned.has(tid)) {
-            console.warn('先生マスターに存在しない先生ID（在籍外の可能性）: ' + tid);
-            warned.add(tid);
-          }
-          return;
+    if(R.balance)pool.sort((a,b)=>st[a.id].m-st[b.id].m);
+    const put=(t,c,k)=>{res[day.key+'|'+t.id]={c:c.id,k};got[c.id]++;const s=st[t.id];s.m++;s.w[wk(i)]=(s.w[wk(i)]||0)+1;s.set.add(day.key)};
+    let rest=[];
+    if(R.main)pool.forEach(t=>{const c=S.clinics.find(c=>c.id===t.main);(c&&got[c.id]<req[c.id])?put(t,c,'通常'):rest.push(t)});
+    else rest=pool;
+    rest.forEach(t=>{
+      let best=null,bs=0;
+      S.clinics.forEach(c=>{
+        const sh=req[c.id]-got[c.id];if(sh<=0)return;
+        const own=c.id===t.main,pi=t.pri.indexOf(c.id);
+        if(!own){
+          if(R.helpOk&&!t.help)return;
+          if(R.helpOnly&&t.pri.some(Boolean)&&pi<0)return;
         }
-        if (rec.off) {
-          dayRows.push(makeRow_(day, null, t, '休み', rec, '希望休'));
-          return;
+        const sc=sh+(!own&&R.helpPri&&pi>=0?(4-pi)*1000:0);
+        if(sc>bs){bs=sc;best=c}
+      });
+      best?put(t,best,best.id===t.main?'通常':'ヘルプ'):res[day.key+'|'+t.id]={k:'待機'};
+    });
+  });
+  S.result={ym:S.ym,res};save();
+}
+function counts(){
+  const c={};
+  if(S.result)for(const k in S.result.res){const r=S.result.res[k];if(r.c){const kk=k.split('|')[0]+'|'+r.c;c[kk]=(c[kk]||0)+1}}
+  return c;
+}
+// ---- ルールチェック：連続出勤・人数不足 ----
+function check(){
+  const D=days(),R=S.result.res,cs=counts(),out=[],mm=+S.ym.slice(5),RL=S.rules;
+  const wk=i=>Math.floor((i+D[0].dow)/7),ds=d=>mm+'/'+d.d+'（'+DW[d.dow]+'）';
+  S.teachers.forEach(t=>{
+    let run=0,st=0;const w={};
+    D.forEach((d,i)=>{
+      const r=R[d.key+'|'+t.id],has=r&&r.c;
+      if(has){
+        w[wk(i)]=(w[wk(i)]||0)+1;if(!run)st=d.d;run++;
+        if(r.c!==t.main){
+          if(RL.helpOk&&!t.help)out.push({t:'他院ヘルプ',d:ds(d),c:cname(r.c),w:t.name,m:'他院ヘルプ不可の先生が所属外の院に配置されています'});
+          else if(RL.helpOnly&&t.pri.some(Boolean)&&!t.pri.includes(r.c))out.push({t:'応援先',d:ds(d),c:cname(r.c),w:t.name,m:'応援先に登録していない院に配置されています'});
         }
-        const reason = checkLimit_(t, stats.get(tid), day, di, days);
-        if (reason) {
-          dayRows.push(makeRow_(day, null, t, '待機', rec, reason));
-          waiting.push(t.name + '（' + reason + '）');
-        } else {
-          pool.push({ t, rec });
-        }
+      }
+      if(run&&(!has||i===D.length-1)){
+        if(RL.consec&&t.consec&&run>t.consec)out.push({t:'連続出勤',d:mm+'/'+st+'〜'+mm+'/'+(has?d.d:d.d-1),c:'-',w:t.name,m:run+'日連続で出勤（上限'+t.consec+'日）'});
+        run=0;
+      }
+    });
+    if(RL.week&&t.week)for(const k in w)if(w[k]>t.week)out.push({t:'週上限',d:'第'+(+k+1)+'週',c:'-',w:t.name,m:w[k]+'日出勤（上限'+t.week+'日）'});
+  });
+  if(RL.need)D.forEach(d=>S.clinics.forEach(c=>{
+    const r=c.req[d.dow]||0,g=cs[d.key+'|'+c.id]||0;
+    if(g<r)out.push({t:'人数不足',d:ds(d),c:c.name,w:'-',m:'必要'+r+'名に対し'+g+'名（'+(r-g)+'名不足）'});
+  }));
+  if(RL.minDays)S.clinics.forEach(c=>{
+    let n=0;D.forEach(d=>{if((cs[d.key+'|'+c.id]||0)>0)n++});
+    if(c.min&&n<c.min)out.push({t:'最低稼働日数',d:S.ym,c:c.name,w:'-',m:'稼働'+n+'日（最低'+c.min+'日）'});
+  });
+  return out;
+}
+
+// ---- 画面 ----
+function head(D,first){
+  return'<tr><th>'+first+'</th>'+D.map(d=>'<th class="'+(d.dow===5?'sat':d.dow===6?'sun':'')+'">'+d.d+'<br><small>'+DW[d.dow]+'</small></th>').join('')+'</tr>';
+}
+function sn(t){return t.name.split(/[ 　]/)[0]}
+function vS(){
+  const D=days(),yy=S.ym.slice(0,4),mm=+S.ym.slice(5),wc=d=>d.dow===5?' ws':d.dow===6?' wu':'';
+  let h='<div class="bar"><button class="p" data-a="run">自動配置する</button><span class="mut">セルを押すと担当を切り替えられます（候補を順に表示し、空欄まで一周）。</span></div>';
+  if(!S.result||S.result.ym!==S.ym)return h+'<div class="ok">この月はまだ配置していません。「希望入力」を確認して「自動配置する」を押してください。</div>';
+  const R=S.result.res,L={},wd={};
+  S.teachers.forEach(t=>{wd[t.id]=0;D.forEach(d=>{const r=R[d.key+'|'+t.id];if(r&&r.c){(L[d.key+'|'+r.c]=L[d.key+'|'+r.c]||[]).push({t,k:r.k,m:r.m});wd[t.id]++}})});
+  for(const k in L)L[k].sort((a,b)=>(a.k==='ヘルプ')-(b.k==='ヘルプ'));
+  const tot=Object.values(wd).reduce((a,b)=>a+b,0);
+  h+='<p class="mut" style="margin:0 0 6px">'+yy+'/'+mm+'/1 ～ '+yy+'/'+mm+'/'+D.length+'</p>';
+  h+='<div class="wrap" style="margin-bottom:12px"><table class="gm"><tr><th>先生</th>'+S.teachers.map(t=>'<th class="cn">'+esc(sn(t))+'</th>').join('')+'<th>合計</th></tr><tr><th>稼働日数</th>'+S.teachers.map(t=>'<td>'+wd[t.id]+'</td>').join('')+'<td class="tot">'+tot+'</td></tr></table></div>';
+  h+='<div class="wrap"><table class="gm"><tr><th>医院</th><th>出勤</th>'+D.map(d=>'<th class="'+wc(d).trim()+'">'+String(d.d).padStart(2,'0')+'<br>'+DW[d.dow]+'</th>').join('')+'</tr>';
+  h+='<tr class="sumr"><th colspan="2">稼働数</th>'+D.map(d=>'<td>'+S.clinics.reduce((a,c)=>a+(c.req[d.dow]||0),0)+'</td>').join('')+'</tr>';
+  h+='<tr class="sumr"><th colspan="2">出勤数</th>'+D.map(d=>'<td>'+S.clinics.reduce((a,c)=>a+(L[d.key+'|'+c.id]||[]).length,0)+'</td>').join('')+'</tr>';
+  S.clinics.forEach(c=>{
+    let n=1,ct=0;
+    D.forEach(d=>{const a=(L[d.key+'|'+c.id]||[]).length;n=Math.max(n,c.req[d.dow]||0,a);ct+=a});
+    for(let j=0;j<n;j++){
+      h+='<tr'+(j===n-1?' class="last"':'')+'>';
+      if(j===0)h+='<th rowspan="'+n+'">'+esc(c.name)+'</th><td rowspan="'+n+'" class="tot">'+ct+'</td>';
+      D.forEach(d=>{
+        const p=(L[d.key+'|'+c.id]||[])[j];let cl='cell'+wc(d),tx='';
+        if(p){tx=(p.k==='ヘルプ'?'★':'')+esc(sn(p.t));if(p.m)cl+=' mn'}else if(j<(c.req[d.dow]||0))cl+=' sh';
+        h+='<td class="'+cl+'" data-a="sc" data-k="'+d.key+'|'+c.id+'|'+j+'">'+tx+'</td>';
       });
-    }
-
-    // 勤務日数が少ない先生から順に（公平性）、同数ならマスター順
-    pool.sort((a, b) => stats.get(a.t.id).month - stats.get(b.t.id).month || a.t.order - b.t.order);
-
-    const assign = (c, clinic, kind) => {
-      dayRows.push(makeRow_(day, clinic, c.t, kind, c.rec, ''));
-      got.set(clinic.id, got.get(clinic.id) + 1);
-      addWork_(stats.get(c.t.id), day);
-      if (kind === 'ヘルプ') {
-        summary.help++;
-        perClinic.get(clinic.id).help++;
-      }
-    };
-
-    // 優先順位1：メイン所属院に配置
-    const rest = [];
-    pool.forEach(c => {
-      const main = clinicMap.get(c.t.main);
-      if (main && got.get(main.id) < req.get(main.id)) {
-        assign(c, main, '通常');
-      } else {
-        rest.push(c);
-      }
-    });
-
-    // 優先順位2：その日不足している他院へヘルプ（不足が大きい医院を優先、希望医院があれば加点）
-    rest.forEach(c => {
-      let best = null;
-      let bestScore = 0;
-      clinics.list.forEach(cl => {
-        const shortCount = req.get(cl.id) - got.get(cl.id);
-        if (shortCount <= 0 || cl.id === c.t.main) return;
-        if (!canHelp_(c.t, c.rec, cl.id)) return;
-        const score = shortCount + (c.rec.prefer === cl.id ? 1000 : 0);
-        if (score > bestScore) {
-          bestScore = score;
-          best = cl;
-        }
-      });
-      if (best) {
-        assign(c, best, 'ヘルプ');
-      } else {
-        // 優先順位3：配置先なし → 待機
-        dayRows.push(makeRow_(day, null, c.t, '待機', c.rec, '配置先なし'));
-        waiting.push(c.t.name + '（配置先なし）');
-      }
-    });
-
-    // その日の集計（充足状況・ログ）
-    const waitCount = waiting.length;
-    const clinicLogs = [];
-    clinics.list.forEach(cl => {
-      const r = req.get(cl.id);
-      const g = got.get(cl.id);
-      if (r === 0 && g === 0) return;
-      const diff = g - r;
-      const judge = diff < 0 ? '不足' : diff > 0 ? '過剰' : '充足';
-      let note = '';
-      if (diff < 0 && waitCount > 0) note = '待機者あり（ヘルプ可否・条件を確認）';
-      statusRows.push([day.dateObj, cl.id, cl.name, r, g, diff, judge, waitCount, note]);
-
-      const pc = perClinic.get(cl.id);
-      pc.required += r;
-      pc.filled += Math.min(g, r);
-      summary.required += r;
-      summary.filled += Math.min(g, r);
-      if (diff < 0) {
-        summary.shortage += -diff;
-        shortages.push(day.key + ' ' + cl.name + ' 不足' + (-diff) + '名');
-      }
-      clinicLogs.push(cl.name + ' ' + g + '/' + r + (diff < 0 ? '(不足' + (-diff) + ')' : ''));
-    });
-    summary.waiting += waitCount;
-    if (waitCount > 0) waitingLog.push(day.key + ' ' + waiting.join('、'));
-
-    console.log('[' + day.key + '(' + day.dowLabel + ')] ' + (clinicLogs.join(' / ') || '必要枠なし') +
-      (waitCount > 0 ? ' ／ 待機: ' + waiting.join('、') : ''));
-
-    dayRows.forEach(r => newRows.push(r));
-  });
-
-  // 月内で一度も配置されなかった先生
-  const idle = teachers.list.filter(t => stats.get(t.id).month === 0).map(t => t.name);
-
-  return { newRows, statusRows, shortages, waitingLog, perClinic, idle, summary, stats, teachers };
-}
-
-// 必要人数の算出（医院休止 → 例外設定 → 祝日 → 曜日別 の順で判定）
-function getRequired_(clinic, day, holidays, exceptions) {
-  if (!clinic.active) return 0;
-  const ex = exceptions.get(day.key + '|' + clinic.id);
-  if (ex !== undefined) return ex;
-  const h = holidays.get(day.key);
-  if (h) {
-    if (h.allClosed) return 0;
-    return clinic.holidayReq !== null ? clinic.holidayReq : clinic.req[day.dow];
-  }
-  return clinic.req[day.dow];
-}
-
-// 週・月・連勤の上限チェック（超過なら理由を返す／問題なければnull）
-function checkLimit_(t, st, day, dayIdx, days) {
-  if (t.monthMax !== null && st.month >= t.monthMax) return '月間上限';
-  if (t.weekMax !== null && (st.weeks[day.weekKey] || 0) >= t.weekMax) return '週上限';
-  if (t.consecMax !== null) {
-    let streak = 0;
-    for (let k = dayIdx - 1; k >= 0 && st.worked.has(days[k].key); k--) streak++;
-    if (streak >= t.consecMax) return '連勤上限';
-  }
-  return null;
-}
-
-// ヘルプ（他院出勤）可否の判定
-function canHelp_(t, rec, clinicId) {
-  const flag = rec.trip || t.helpOk;
-  let ok;
-  if (isYes_(flag)) ok = true;
-  else if (isNo_(flag)) ok = false;
-  else ok = CONFIG.DEFAULT_HELP_OK;
-  if (!ok) return false;
-  if (rec.tripClinics && !rec.tripClinics.has(clinicId)) return false;
-  return true;
-}
-
-function addWork_(st, day) {
-  st.month++;
-  st.weeks[day.weekKey] = (st.weeks[day.weekKey] || 0) + 1;
-  st.worked.add(day.key);
-}
-
-function makeRow_(day, clinic, t, kind, rec, note) {
-  const working = !!clinic;
-  return [
-    day.dateObj,
-    day.dowLabel,
-    working ? clinic.id : '',
-    working ? clinic.name : '',
-    t.id,
-    t.name,
-    kind,
-    working ? (rec.start || clinic.start) : '',
-    working ? (rec.end || clinic.end) : '',
-    kind === 'ヘルプ' ? 'ヘルプ' : '',
-    '自動案',
-    note,
-  ];
-}
-
-// ============================================================
-// データ読み込み
-// ============================================================
-function loadTeachers_(ss) {
-  const rows = readTable_(getSheet_(ss, CONFIG.SHEET.TEACHER), false).values;
-  const list = [];
-  const map = new Map();
-  rows.forEach((r, i) => {
-    const id = str_(r[COL.T.ID]);
-    if (!id) return;
-    const status = str_(r[COL.T.STATUS]);
-    if (status && status !== '在籍') return;
-    const t = {
-      id,
-      name: str_(r[COL.T.NAME]),
-      main: str_(r[COL.T.MAIN]),
-      weekMax: limit_(r[COL.T.WEEK_MAX]),
-      monthMax: limit_(r[COL.T.MONTH_MAX]),
-      consecMax: limit_(r[COL.T.CONSEC_MAX]),
-      helpOk: str_(r[COL.T.HELP_OK]),
-      order: i,
-    };
-    list.push(t);
-    map.set(id, t);
-  });
-  return { list, map };
-}
-
-function loadClinics_(ss) {
-  const table = readTable_(getSheet_(ss, CONFIG.SHEET.CLINIC), true); // 時刻は表示値で取得
-  const list = [];
-  table.values.forEach((r, i) => {
-    const id = str_(r[COL.C.ID]);
-    if (!id) return;
-    const d = table.display[i];
-    const req = [];
-    for (let k = 0; k < 7; k++) req.push(toNum_(r[COL.C.DOW_FIRST + k], 0));
-    const hv = r[COL.C.HOLIDAY];
-    list.push({
-      id,
-      name: str_(r[COL.C.NAME]),
-      start: timeStr_(d[COL.C.START]),
-      end: timeStr_(d[COL.C.END]),
-      req,                                                    // 月〜日
-      holidayReq: (hv === '' || hv == null) ? null : toNum_(hv, 0),
-      active: str_(r[COL.C.STATUS]) !== '休止',
-      order: i,
-    });
-  });
-  return { list };
-}
-
-function loadExceptions_(ss, tz) {
-  const sheet = ss.getSheetByName(CONFIG.SHEET.EXCEPTION);
-  const map = new Map();
-  if (!sheet) return map;
-  readTable_(sheet, false).values.forEach(r => {
-    const key = toDateKey_(r[COL.E.DATE], tz);
-    const cid = str_(r[COL.E.CLINIC]);
-    if (!key || !cid) return;
-    const isClosed = str_(r[COL.E.TYPE]) === '休診';
-    const raw = r[COL.E.REQ];
-    if (!isClosed && (raw === '' || raw == null)) return;
-    map.set(key + '|' + cid, isClosed ? 0 : toNum_(raw, 0));
-  });
-  return map;
-}
-
-function loadHolidays_(ss, tz) {
-  const sheet = ss.getSheetByName(CONFIG.SHEET.SETTING);
-  const map = new Map();
-  if (!sheet) return map;
-  readTable_(sheet, false).values.forEach(r => {
-    const key = toDateKey_(r[COL.H.DATE], tz);
-    if (!key) return;
-    map.set(key, { name: str_(r[COL.H.NAME]), allClosed: isYes_(str_(r[COL.H.ALL_CLOSED])) });
-  });
-  return map;
-}
-
-// 出勤可能リスト → Map<日付, Map<先生ID, 希望内容>>
-function loadAvailability_(ss, tz, target) {
-  const table = readTable_(getSheet_(ss, CONFIG.SHEET.AVAIL), true);
-  const byDate = new Map();
-  table.values.forEach((r, i) => {
-    const tid = str_(r[COL.A.TEACHER]);
-    const key = toDateKey_(r[COL.A.DATE], tz);
-    if (!tid || !key || key.indexOf(target.ym) !== 0) return;
-    const state = str_(r[COL.A.STATUS]);
-    if (state && state !== '有効') return;                    // 取消・変更済みは対象外
-
-    if (!byDate.has(key)) byDate.set(key, new Map());
-    const m = byDate.get(key);
-    const existing = m.get(tid);
-    if (existing && existing.off) return;                     // 希望休は常に優先
-
-    const d = table.display[i];
-    if (str_(r[COL.A.KUBUN]) === '希望休') {
-      m.set(tid, { off: true });
-      return;
-    }
-    const tc = str_(r[COL.A.TRIP_CLINICS]);
-    m.set(tid, {
-      off: false,
-      start: timeStr_(d[COL.A.START]),
-      end: timeStr_(d[COL.A.END]),
-      trip: str_(r[COL.A.TRIP]),
-      tripClinics: tc ? new Set(tc.split(/[,、，\s]+/).filter(Boolean)) : null,
-      prefer: str_(r[COL.A.PREFER]),
-    });
-  });
-  return byDate;
-}
-
-// シフト明細：対象月以外／確定・手動修正の行を保持、それ以外の対象月の行は再生成のため破棄
-function loadDetail_(ss, tz, target) {
-  const sheet = getSheet_(ss, CONFIG.SHEET.DETAIL);
-  const last = sheet.getLastRow();
-  const keep = [];
-  const locked = [];
-  if (last >= 2) {
-    const values = sheet.getRange(2, 1, last - 1, CONFIG.DETAIL_COLS).getValues();
-    values.forEach(r => {
-      const key = toDateKey_(r[COL.D.DATE], tz);
-      if (!key && !str_(r[COL.D.TEACHER_ID])) return;          // 空行は除外
-      if (key.indexOf(target.ym) !== 0) {
-        keep.push(r);
-      } else if (CONFIG.LOCKED_STATES.indexOf(str_(r[COL.D.STATE])) >= 0) {
-        keep.push(r);
-        locked.push(r);
-      }
-    });
-  }
-  return { sheet, keep, locked };
-}
-
-// ============================================================
-// 書き込み
-// ============================================================
-function writeDetail_(ss, tz, target, detail, newRows) {
-  const sheet = detail.sheet;
-  const all = detail.keep.concat(newRows).map(r => {
-    const key = toDateKey_(r[COL.D.DATE], tz);
-    return { key, sortKey: key + '|' + (str_(r[COL.D.CLINIC_ID]) || 'zzz') + '|' + str_(r[COL.D.TEACHER_ID]), row: r };
-  });
-  all.sort((a, b) => (a.sortKey < b.sortKey ? -1 : a.sortKey > b.sortKey ? 1 : 0));
-
-  // Date型に統一して書き込む
-  const out = all.map(o => {
-    const r = o.row.slice(0, CONFIG.DETAIL_COLS);
-    r[COL.D.DATE] = toDateObj_(o.key, tz);
-    return r;
-  });
-
-  const last = sheet.getLastRow();
-  if (last >= 2) sheet.getRange(2, 1, last - 1, CONFIG.DETAIL_COLS).clearContent();
-  if (out.length > 0) {
-    const range = sheet.getRange(2, 1, out.length, CONFIG.DETAIL_COLS);
-    sheet.getRange(2, 1, out.length, 1).setNumberFormat('yyyy/MM/dd');
-    sheet.getRange(2, COL.D.START + 1, out.length, 2).setNumberFormat('HH:mm');
-    range.setValues(out);
-  }
-  console.log('シフト明細：' + out.length + '行を書き込みました');
-  return all.filter(o => o.key.indexOf(target.ym) === 0).map(o => o.row);
-}
-
-// シフト表（カレンダー形式）を再生成
-function writeCalendar_(ss, tz, target, teachers, clinics, targetRows) {
-  const sheet = getSheet_(ss, CONFIG.SHEET.CALENDAR);
-  const clinicMap = new Map(clinics.list.map(c => [c.id, c]));
-  const dayCols = 31;
-
-  // 先生ID → 日(1〜31) → {kind, text}
-  const cellMap = new Map();
-  targetRows.forEach(r => {
-    const tid = str_(r[COL.D.TEACHER_ID]);
-    const key = toDateKey_(r[COL.D.DATE], tz);
-    if (!tid || !key) return;
-    const dayNo = Number(key.slice(8));
-    const kind = str_(r[COL.D.KIND]);
-    let text;
-    if (WORK_KINDS.indexOf(kind) >= 0) text = str_(r[COL.D.CLINIC_NAME]) + (kind === '遅番' ? '(遅)' : '');
-    else if (kind === '待機') text = '待機';
-    else if (kind === '休み') text = '休';
-    else return;
-    if (!cellMap.has(tid)) cellMap.set(tid, {});
-    cellMap.get(tid)[dayNo] = { kind, text };
-  });
-
-  const header = ['先生ID', '氏名', 'メイン所属院'];
-  for (let d = 1; d <= dayCols; d++) header.push(d <= target.daysInMonth ? d + '日' : '');
-  header.push('出勤日数', 'ヘルプ回数', '遅番回数');
-
-  const body = [];
-  const bg = [];
-  teachers.list.forEach(t => {
-    const cells = cellMap.get(t.id) || {};
-    const mainClinic = clinicMap.get(t.main);
-    const row = [t.id, t.name, mainClinic ? mainClinic.name : t.main];
-    const rowBg = [null, null, null];
-    let work = 0, help = 0, late = 0;
-    for (let d = 1; d <= dayCols; d++) {
-      const c = cells[d];
-      if (!c || d > target.daysInMonth) {
-        row.push('');
-        rowBg.push(null);
-        continue;
-      }
-      row.push(c.text);
-      if (c.kind === 'ヘルプ') { rowBg.push('#fff2cc'); work++; help++; }
-      else if (c.kind === '遅番') { rowBg.push('#d9ead3'); work++; late++; }
-      else if (c.kind === '通常') { rowBg.push(null); work++; }
-      else if (c.kind === '待機') rowBg.push('#e0e0e0');
-      else rowBg.push('#f4cccc');
-    }
-    row.push(work, help, late);
-    rowBg.push(null, null, null);
-    body.push(row);
-    bg.push(rowBg);
-  });
-
-  sheet.clear();
-  sheet.getRange(1, 1).setValue('対象年月');
-  sheet.getRange(1, 2).setNumberFormat('@').setValue(target.year + '年' + target.month + '月');
-  sheet.getRange(2, 1, 1, header.length).setValues([header]).setFontWeight('bold').setBackground('#d9e2f3');
-  if (body.length > 0) {
-    const range = sheet.getRange(3, 1, body.length, header.length);
-    range.setValues(body);
-    range.setBackgrounds(bg);
-    range.setHorizontalAlignment('center');
-  }
-  sheet.getRange(1, 1).setFontWeight('bold');
-  sheet.setFrozenRows(2);
-  sheet.setFrozenColumns(3);
-  console.log('シフト表：' + body.length + '名分を再生成しました');
-}
-
-// 充足状況を再生成（対象月のみ）
-function writeStatus_(ss, tz, statusRows) {
-  const sheet = getSheet_(ss, CONFIG.SHEET.STATUS);
-  const header = ['日付', '医院ID', '医院名', '必要人数', '配置人数', '過不足', '判定', '候補者数', '備考'];
-  sheet.clear();
-  sheet.getRange(1, 1, 1, header.length).setValues([header]).setFontWeight('bold').setBackground('#d9e2f3');
-  if (statusRows.length > 0) {
-    sheet.getRange(2, 1, statusRows.length, 1).setNumberFormat('yyyy/MM/dd');
-    sheet.getRange(2, 1, statusRows.length, header.length).setValues(statusRows);
-    const bg = statusRows.map(r => {
-      const color = r[6] === '不足' ? '#f4cccc' : r[6] === '過剰' ? '#fff2cc' : null;
-      return header.map(() => color);
-    });
-    sheet.getRange(2, 1, statusRows.length, header.length).setBackgrounds(bg);
-  }
-  sheet.setFrozenRows(1);
-  console.log('充足状況：' + statusRows.length + '行を書き込みました');
-}
-
-// ============================================================
-// ログ
-// ============================================================
-function logSummary_(result, startedAt) {
-  const s = result.summary;
-  console.log('===== 集計 =====');
-  console.log('必要枠合計: ' + s.required + ' / 充足: ' + s.filled + ' / 不足: ' + s.shortage +
-    ' / ヘルプ配置: ' + s.help + ' / 待機のべ: ' + s.waiting);
-
-  console.log('--- 医院別（充足 / 必要、うちヘルプ受入）---');
-  result.perClinic.forEach(pc => {
-    if (pc.required === 0 && pc.filled === 0) return;
-    console.log(pc.name + ': ' + pc.filled + ' / ' + pc.required + '（ヘルプ受入 ' + pc.help + '）');
-  });
-
-  console.log('--- 不足（' + result.shortages.length + '件）---');
-  result.shortages.forEach(x => console.log(x));
-
-  console.log('--- 余った先生（待機）日別（' + result.waitingLog.length + '日）---');
-  result.waitingLog.forEach(x => console.log(x));
-
-  if (result.idle.length > 0) {
-    console.log('--- 月内で一度も配置されなかった先生 ---');
-    console.log(result.idle.join('、'));
-  }
-  console.log('===== 完了（' + ((Date.now() - startedAt) / 1000).toFixed(1) + '秒）=====');
-}
-
-// ============================================================
-// ルール違反チェック
-// ============================================================
-function runRuleCheck() {
-  const startedAt = Date.now();
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const tz = ss.getSpreadsheetTimeZone();
-
-  const target = promptCheckMonth_(tz);
-  if (!target) {
-    console.log('キャンセルされました');
-    return;
-  }
-
-  const lock = LockService.getDocumentLock();
-  if (!lock.tryLock(30000)) {
-    showAlert_('他の処理が実行中です。しばらくしてからもう一度お試しください。');
-    return;
-  }
-
-  try {
-    console.log('===== ルール違反チェック 開始：' + target.ym + ' =====');
-    ss.toast('チェック中です...', 'ルール違反チェック', 5);
-
-    const errors = checkRulesForMonth_(ss, tz, target);
-    const sheet = writeErrorSheet_(ss, errors, target);
-
-    // 集計
-    const countBy = (type, level) =>
-      errors.filter(e => e.type === type && (!level || e.level === level)).length;
-    const errCount = errors.filter(e => e.level === 'エラー').length;
-    const warnCount = errors.filter(e => e.level === '警告').length;
-
-    console.log('--- 結果 ---');
-    errors.forEach(e => console.log('[' + e.level + '][' + e.type + '] ' + e.date + ' / ' +
-      (e.clinic || '-') + ' / ' + (e.teacher || '-') + ' / ' + e.reason));
-    console.log('エラー ' + errCount + '件、警告 ' + warnCount + '件（' +
-      ((Date.now() - startedAt) / 1000).toFixed(1) + '秒）');
-
-    if (errors.length === 0) {
-      showAlert_('ルール違反は見つかりませんでした（' + target.ym + '）。');
-    } else {
-      ss.setActiveSheet(sheet);
-      showAlert_(
-        'ルール違反チェックが完了しました（' + target.ym + '）\n\n' +
-        'エラー：' + errCount + '件 ／ 警告：' + warnCount + '件\n' +
-        '　連続出勤：' + countBy('連続出勤') + '件\n' +
-        '　人数不足：' + countBy('人数不足') + '件\n' +
-        '　無理な移動：' + countBy('無理な移動') + '件\n\n' +
-        '詳細は「' + RULE.SHEET_ERROR + '」シートをご確認ください。'
-      );
-    }
-  } catch (e) {
-    console.error('エラー: ' + e.message + '\n' + e.stack);
-    showAlert_('エラーが発生しました：' + e.message);
-  } finally {
-    lock.releaseLock();
-  }
-}
-
-// チェック本体（他の処理からも呼び出せるよう、UIから分離）
-function checkRulesForMonth_(ss, tz, target) {
-  const teachers = loadTeachers_(ss);
-  const clinics = loadClinics_(ss);
-  const exceptions = loadExceptions_(ss, tz);
-  const holidays = loadHolidays_(ss, tz);
-  const days = buildDays_(target, tz);
-  const monthStart = days[0].key;
-  const monthEnd = days[days.length - 1].key;
-  const lookStart = shiftKey_(monthStart, -RULE.LOOKBACK_DAYS);
-
-  // --- シフト明細を一括取得（時刻は表示値から取得） ---
-  const sheet = getSheet_(ss, CONFIG.SHEET.DETAIL);
-  const last = sheet.getLastRow();
-  const assignments = [];
-  if (last >= 2) {
-    const range = sheet.getRange(2, 1, last - 1, CONFIG.DETAIL_COLS);
-    const values = range.getValues();
-    const display = range.getDisplayValues();
-    values.forEach((r, i) => {
-      const key = toDateKey_(r[COL.D.DATE], tz);
-      if (!key || key < lookStart || key > monthEnd) return;
-      if (WORK_KINDS.indexOf(str_(r[COL.D.KIND])) < 0) return;   // 待機・休みは対象外
-      const startStr = timeStr_(display[i][COL.D.START]);
-      const endStr = timeStr_(display[i][COL.D.END]);
-      assignments.push({
-        key,
-        clinicId: str_(r[COL.D.CLINIC_ID]),
-        clinicName: str_(r[COL.D.CLINIC_NAME]),
-        teacherId: str_(r[COL.D.TEACHER_ID]),
-        teacherName: str_(r[COL.D.TEACHER_NAME]),
-        startStr, endStr,
-        start: toMin_(startStr),
-        end: toMin_(endStr),
-      });
-    });
-  }
-  console.log('チェック対象の勤務行: ' + assignments.length + '行（連勤判定のため前月' + RULE.LOOKBACK_DAYS + '日分を含む）');
-
-  const errors = [];
-  const fmt = key => key.replace(/-/g, '/');
-
-  // ===== ルール1：連続出勤 =====
-  const byTeacher = new Map();
-  assignments.forEach(a => {
-    if (!byTeacher.has(a.teacherId)) byTeacher.set(a.teacherId, { name: a.teacherName, days: new Set() });
-    byTeacher.get(a.teacherId).days.add(a.key);
-  });
-  byTeacher.forEach((info, tid) => {
-    const t = teachers.map.get(tid);
-    const limit = (t && t.consecMax !== null) ? t.consecMax : RULE.CONSEC_DEFAULT;
-    const keys = Array.from(info.days).sort();
-    let runStart = 0;
-    for (let i = 1; i <= keys.length; i++) {
-      const contiguous = i < keys.length && dayNum_(keys[i]) - dayNum_(keys[i - 1]) === 1;
-      if (contiguous) continue;
-      const len = i - runStart;
-      const startKey = keys[runStart];
-      const endKey = keys[i - 1];
-      if (len > limit && endKey >= monthStart) {
-        errors.push({
-          type: '連続出勤',
-          sortKey: startKey,
-          date: fmt(startKey) + '〜' + fmt(endKey),
-          clinic: '',
-          teacher: t ? t.name : info.name,
-          reason: len + '日連続で出勤しています（上限' + limit + '日）',
-          level: 'エラー',
-        });
-      }
-      runStart = i;
+      h+='</tr>';
     }
   });
-
-  // ===== ルール2：人数不足 =====
-  const gotMap = new Map();
-  assignments.forEach(a => {
-    if (a.key < monthStart) return;
-    const k = a.key + '|' + a.clinicId;
-    gotMap.set(k, (gotMap.get(k) || 0) + 1);
-  });
-  days.forEach(day => {
-    clinics.list.forEach(c => {
-      const req = getRequired_(c, day, holidays, exceptions);
-      if (req <= 0) return;
-      const got = gotMap.get(day.key + '|' + c.id) || 0;
-      if (got < req) {
-        errors.push({
-          type: '人数不足',
-          sortKey: day.key,
-          date: fmt(day.key),
-          clinic: c.name,
-          teacher: '',
-          reason: '必要' + req + '名に対し配置' + got + '名（' + (req - got) + '名不足）',
-          level: 'エラー',
-        });
-      }
+  h+='</table></div><div class="legend"><span>★＝他院からのヘルプ</span><span class="ls">不足の枠</span><span class="lm">手で変更したセル</span><span class="lw">土</span><span class="lu">日</span></div>';
+  return h;
+}
+function vH(){
+  const D=days();
+  let h='<div class="bar"><button class="b" data-a="wk">平日を全員「○」にする</button><button class="b" data-a="clr">この月の希望を全消去</button><span class="mut">セルを押すたびに ・ → ○（出勤可）→ 休（希望休）→ ・ と切り替わります。</span></div>';
+  h+='<div class="wrap"><table class="g">'+head(D,'先生');
+  S.teachers.forEach(t=>{
+    h+='<tr><td>'+esc(t.name)+'</td>';
+    D.forEach(d=>{
+      const a=S.avail[t.id+'|'+d.key];
+      h+='<td class="cell '+(a||'')+'" data-a="hc" data-k="'+t.id+'|'+d.key+'">'+(a==='o'?'○':a==='x'?'休':'·')+'</td>';
     });
+    h+='</tr>';
   });
-
-  // ===== ルール3：無理な移動（同日に複数の勤務がある先生） =====
-  const byTeacherDay = new Map();
-  assignments.forEach(a => {
-    if (a.key < monthStart) return;
-    const k = a.teacherId + '|' + a.key;
-    if (!byTeacherDay.has(k)) byTeacherDay.set(k, []);
-    byTeacherDay.get(k).push(a);
+  return h+'</table></div>';
+}
+function vT(){
+  const D=days(),opt=(sel,ex)=>'<option value="">なし</option>'+S.clinics.filter(c=>c.id!==ex).map(c=>'<option value="'+c.id+'"'+(c.id===sel?' selected':'')+'>'+esc(c.name)+'</option>').join('');
+  let h='<div class="bar"><button class="b" data-a="at">＋先生を追加</button><span class="mut">週上限・連勤上限が 0 の場合は上限なしです。応援先は優先順位の高い順（第1が最優先）。</span></div><div class="wrap"><table><tr><th>名前</th><th>メイン所属院</th><th>週上限（日）</th><th>連勤上限（日）</th><th>他院ヘルプ可</th><th>応援先 第1</th><th>応援先 第2</th><th>応援先 第3</th><th></th></tr>';
+  S.teachers.forEach((t,i)=>{
+    h+='<tr><td><input data-t="'+i+'" data-f="name" value="'+esc(t.name)+'"></td><td><select data-t="'+i+'" data-f="main">'+S.clinics.map(c=>'<option value="'+c.id+'"'+(c.id===t.main?' selected':'')+'>'+esc(c.name)+'</option>').join('')+'</select></td>'
+    +'<td><input type="number" min="0" data-t="'+i+'" data-f="week" value="'+t.week+'"></td><td><input type="number" min="0" data-t="'+i+'" data-f="consec" value="'+t.consec+'"></td>'
+    +'<td><input type="checkbox" data-t="'+i+'" data-f="help"'+(t.help?' checked':'')+'></td>'
+    +[0,1,2].map(j=>'<td><select data-t="'+i+'" data-p="'+j+'">'+opt(t.pri[j],t.main)+'</select></td>').join('')
+    +'<td><button class="b" data-a="dt" data-i="'+i+'">削除</button></td></tr>';
   });
-  byTeacherDay.forEach(list => {
-    if (list.length < 2) return;
-    const first = list[0];
-    const t = teachers.map.get(first.teacherId);
-    const teacherName = t ? t.name : first.teacherName;
-    const clinicIds = new Set(list.map(a => a.clinicId));
-    const clinicNames = Array.from(new Set(list.map(a => a.clinicName))).join(' / ');
-
-    if (clinicIds.size === 1) {
-      errors.push({
-        type: '無理な移動',
-        sortKey: first.key,
-        date: fmt(first.key),
-        clinic: clinicNames,
-        teacher: teacherName,
-        reason: '同じ医院に同日' + list.length + '件登録されています（二重登録の可能性）',
-        level: 'エラー',
-      });
-      return;
-    }
-
-    // 開始時刻順に並べ、隣り合う勤務の間隔を確認（時刻なしは最後尾）
-    const sorted = list.slice().sort((a, b) =>
-      (a.start === null ? 99999 : a.start) - (b.start === null ? 99999 : b.start));
-    const summary = sorted.map(a =>
-      a.clinicName + ' ' + (a.startStr || '--:--') + '-' + (a.endStr || '--:--')).join(' → ');
-
-    let worst = 0;          // 3:重複 2:移動時間不足 1:判定不可 0:問題なし
-    let worstGap = null;
-    for (let i = 1; i < sorted.length; i++) {
-      const prev = sorted[i - 1];
-      const cur = sorted[i];
-      if (prev.clinicId === cur.clinicId) continue;
-      if (prev.end === null || cur.start === null) {
-        worst = Math.max(worst, 1);
-        continue;
-      }
-      const gap = cur.start - prev.end;
-      if (gap < 0) {
-        worst = Math.max(worst, 3);
-      } else if (gap < RULE.MOVE_MIN_MINUTES) {
-        if (worst < 3) { worst = Math.max(worst, 2); worstGap = gap; }
-      }
-    }
-
-    let reason, level;
-    if (worst === 3) {
-      reason = '勤務時間が重複しています（' + summary + '）';
-      level = 'エラー';
-    } else if (worst === 2) {
-      reason = '移動時間が不足しています：間隔' + worstGap + '分（目安' + RULE.MOVE_MIN_MINUTES + '分以上）（' + summary + '）';
-      level = 'エラー';
-    } else if (worst === 1) {
-      reason = '同日に複数院へ配置されていますが、時刻が未入力のため移動可否を判定できません（' + summary + '）';
-      level = '警告';
-    } else {
-      reason = '同日に複数院へ配置されています（1日1院の前提と異なります）（' + summary + '）';
-      level = '警告';
-    }
-    errors.push({
-      type: '無理な移動',
-      sortKey: first.key,
-      date: fmt(first.key),
-      clinic: clinicNames,
-      teacher: teacherName,
-      reason,
-      level,
-    });
+  h+='</table></div><h2>遅番できる日（'+S.ym.replace('-','年')+'月）</h2><div class="bar"><span class="mut">遅番が可能な日を押すと「遅」が付きます（もう一度押すと解除）。</span></div><div class="wrap"><table class="g">'+head(D,'先生');
+  S.teachers.forEach(t=>{
+    h+='<tr><td>'+esc(t.name)+'</td>'+D.map(d=>{const on=S.late[t.id+'|'+d.key];return'<td class="cell'+(on?' o':'')+'" data-a="lc" data-k="'+t.id+'|'+d.key+'">'+(on?'遅':'·')+'</td>'}).join('')+'</tr>';
   });
-
-  // 種別 → 日付 → 医院 → 先生 の順に並べ替え
-  errors.sort((a, b) =>
-    (CHECK_TYPE_ORDER[a.type] - CHECK_TYPE_ORDER[b.type]) ||
-    (a.sortKey < b.sortKey ? -1 : a.sortKey > b.sortKey ? 1 : 0) ||
-    (a.clinic < b.clinic ? -1 : a.clinic > b.clinic ? 1 : 0) ||
-    (a.teacher < b.teacher ? -1 : a.teacher > b.teacher ? 1 : 0));
-
-  return errors;
+  return h+'</table></div><div class="bar" style="margin-top:12px"><button class="b" data-a="reset">サンプルに戻す</button></div>';
 }
+function vC(){
+  let h='<div class="bar"><button class="b" data-a="ac">＋医院を追加</button><span class="mut">曜日ごとの必要人数と、月の最低稼働日数（1名以上が配置される日数）を入力します。</span></div><div class="wrap"><table><tr><th>医院名</th>'+DW.map(d=>'<th>'+d+'</th>').join('')+'<th>最低稼働日数（月）</th><th></th></tr>';
+  S.clinics.forEach((c,i)=>{
+    h+='<tr><td><input data-c="'+i+'" data-f="name" value="'+esc(c.name)+'"></td>'+c.req.map((r,j)=>'<td><input type="number" min="0" data-c="'+i+'" data-r="'+j+'" value="'+r+'"></td>').join('')+'<td><input type="number" min="0" data-c="'+i+'" data-f="min" value="'+c.min+'"></td><td><button class="b" data-a="dc" data-i="'+i+'">削除</button></td></tr>';
+  });
+  return h+'</table></div>';
+}
+function vR(){
+  return'<p class="mut" style="margin-top:0">チェックを入れたルールが反映されます。「配置」のルールは自動配置のやり直しで、「チェック」のルールは「ルールチェック」タブで効きます。</p><div class="wrap">'
+   +RULES.map(r=>'<label class="rule"><input type="checkbox" data-rl="'+r[0]+'"'+(S.rules[r[0]]?' checked':'')+'><span><b>'+r[1]+'</b><br><span class="mut">'+r[2]+'</span></span><span class="tag">'+r[3]+'</span></label>').join('')+'</div>';
+}
+function vK(){
+  if(!S.result||S.result.ym!==S.ym)return'<div class="ok">先に「シフト表」で自動配置を実行してください。</div>';
+  const e=check(),on=RULES.filter(r=>S.rules[r[0]]).length;
+  if(!e.length)return'<div class="ok">✓ ルール違反はありません（有効なルール '+on+'件）。</div>';
+  const by={};e.forEach(x=>by[x.t]=(by[x.t]||0)+1);
+  return'<div class="stats"><div class="stat bad">違反<b>'+e.length+'</b></div>'+Object.keys(by).map(k=>'<div class="stat">'+k+'<b>'+by[k]+'</b></div>').join('')+'</div>'
+   +'<div class="wrap"><table class="err"><tr><th>種別</th><th>日付</th><th>医院名</th><th>先生名</th><th>内容</th></tr>'
+   +e.map(x=>'<tr><td class="lv">'+x.t+'</td><td>'+x.d+'</td><td>'+esc(x.c)+'</td><td>'+esc(x.w)+'</td><td>'+x.m+'</td></tr>').join('')+'</table></div>';
+}
+function render(){
+  q('#ym').value=S.ym;
+  q('#nav').innerHTML=TABS.map(t=>'<button class="tab'+(t[0]===tab?' on':'')+'" data-a="tab" data-k="'+t[0]+'">'+t[1]+'</button>').join('');
+  q('#v').innerHTML={s:vS,h:vH,t:vT,c:vC,r:vR,k:vK}[tab]();
+}
+function rr(){const w=q('.wrap'),l=w?w.scrollLeft:0;render();const n=q('.wrap');if(n)n.scrollLeft=l}
 
-// 「エラー一覧」シートへ出力（毎回作り直し）
-function writeErrorSheet_(ss, errors, target) {
-  const sheet = ss.getSheetByName(RULE.SHEET_ERROR) || ss.insertSheet(RULE.SHEET_ERROR);
-  const header = ['日付', '医院名', '先生名', '種別', 'エラー理由', '重要度'];
-  const stamp = Utilities.formatDate(new Date(), ss.getSpreadsheetTimeZone(), 'yyyy/MM/dd HH:mm');
-
-  sheet.clear();
-  sheet.getRange(1, 1, 1, header.length).setValues([header]).setFontWeight('bold').setBackground('#d9e2f3');
-  sheet.getRange(1, 8).setValue('チェック対象：' + target.ym + '　実行：' + stamp);
-
-  if (errors.length === 0) {
-    sheet.getRange(2, 1).setValue('違反は見つかりませんでした（' + target.ym + '）');
-  } else {
-    const rows = errors.map(e => [e.date, e.clinic || '-', e.teacher || '-', e.type, e.reason, e.level]);
-    sheet.getRange(2, 1, rows.length, 1).setNumberFormat('@');          // 期間表示（〜）も含め文字列で統一
-    sheet.getRange(2, 1, rows.length, header.length).setValues(rows);
-    const bg = errors.map(e => header.map(() => (e.level === 'エラー' ? '#f4cccc' : '#fff2cc')));
-    sheet.getRange(2, 1, rows.length, header.length).setBackgrounds(bg);
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-a]');if(!b)return;
+  const a=b.dataset.a,k=b.dataset.k,i=+b.dataset.i;
+  if(a==='tab'){tab=k;render();return}
+  if(a==='run'){assign();rr();return}
+  if(a==='hc'){
+    const c=S.avail[k];
+    if(!c)S.avail[k]='o';else if(c==='o')S.avail[k]='x';else delete S.avail[k];
+    S.result=null;save();rr();return;
   }
-
-  sheet.setFrozenRows(1);
-  sheet.setColumnWidth(1, 190);
-  sheet.setColumnWidth(2, 140);
-  sheet.setColumnWidth(3, 120);
-  sheet.setColumnWidth(4, 100);
-  sheet.setColumnWidth(5, 560);
-  sheet.setColumnWidth(6, 70);
-  console.log('エラー一覧：' + errors.length + '件を書き込みました');
-  return sheet;
-}
-
-// ============================================================
-// ユーティリティ
-// ============================================================
-function getSheet_(ss, name) {
-  const sheet = ss.getSheetByName(name);
-  if (!sheet) throw new Error('シート「' + name + '」が見つかりません。');
-  return sheet;
-}
-
-// ヘッダー（1行目）を除いたデータ範囲を一括取得。時刻列の取りこぼし防止のため表示値も取得可能
-function readTable_(sheet, withDisplay) {
-  const last = sheet.getLastRow();
-  const lastCol = sheet.getLastColumn();
-  if (last < 2 || lastCol < 1) return { values: [], display: [] };
-  const range = sheet.getRange(2, 1, last - 1, lastCol);
-  return { values: range.getValues(), display: withDisplay ? range.getDisplayValues() : null };
-}
-
-function promptTargetMonth_(tz) {
-  const now = new Date();
-  let y = Number(Utilities.formatDate(now, tz, 'yyyy'));
-  let m = Number(Utilities.formatDate(now, tz, 'M')) + 1;
-  if (m > 12) { m = 1; y++; }
-  const def = y + '/' + ('0' + m).slice(-2);
-
-  let input = def;
-  try {
-    const ui = SpreadsheetApp.getUi();
-    const res = ui.prompt(
-      'シフト自動配置',
-      '対象年月を入力してください（例：' + def + '）\n※「確定」「手動修正」以外の既存シフトは上書きされます。',
-      ui.ButtonSet.OK_CANCEL
-    );
-    if (res.getSelectedButton() !== ui.Button.OK) return null;
-    input = res.getResponseText().trim() || def;
-  } catch (e) {
-    console.log('ダイアログを表示できないため、既定値 ' + def + ' を使用します');
+  if(a==='sc'&&S.result){
+    const [dk,cid,j]=k.split('|'),R=S.result.res,T=S.teachers;
+    const cur0=T.filter(t=>{const r=R[dk+'|'+t.id];return r&&r.c===cid}).map(t=>({t,k:R[dk+'|'+t.id].k})).sort((x,y)=>(x.k==='ヘルプ')-(y.k==='ヘルプ'));
+    const cur=cur0[+j]?cur0[+j].t:null;
+    const cand=T.filter(t=>{const r=R[dk+'|'+t.id];return S.avail[t.id+'|'+dk]==='o'&&!(r&&r.c)});
+    const opts=[null].concat(T.filter(t=>t===cur||cand.includes(t))),nx=opts[(opts.indexOf(cur)+1)%opts.length];
+    if(cur)R[dk+'|'+cur.id]={k:'待機'};
+    if(nx)R[dk+'|'+nx.id]={c:cid,k:nx.main===cid?'通常':'ヘルプ',m:1};
+    save();rr();return;
   }
-
-  const mt = input.match(/^(\d{4})[\/\-年](\d{1,2})月?$/);
-  if (!mt) {
-    showAlert_('年月の形式が正しくありません（例：' + def + '）');
-    return null;
+  if(a==='lc'){if(S.late[k])delete S.late[k];else S.late[k]=1;save();rr();return}
+  if(a==='wk'){
+    days().forEach(d=>{if(d.dow<5)S.teachers.forEach(t=>{const kk=t.id+'|'+d.key;if(!S.avail[kk])S.avail[kk]='o'})});
+    S.result=null;save();rr();return;
   }
-  const year = Number(mt[1]);
-  const month = Number(mt[2]);
-  if (month < 1 || month > 12) {
-    showAlert_('月は1〜12で入力してください。');
-    return null;
+  if(a==='clr'){days().forEach(d=>S.teachers.forEach(t=>delete S.avail[t.id+'|'+d.key]));S.result=null;save();rr();return}
+  if(a==='at'){S.teachers.push({id:'t'+(S.n++),name:'新しい先生',main:S.clinics[0]?S.clinics[0].id:'',week:5,consec:6,help:true});S.result=null;save();rr();return}
+  if(a==='dt'){S.teachers.splice(i,1);S.result=null;save();rr();return}
+  if(a==='ac'){S.clinics.push({id:'c'+(S.n++),name:'新しい医院',req:[2,2,2,2,2,1,0]});S.result=null;save();rr();return}
+  if(a==='dc'){S.clinics.splice(i,1);S.result=null;save();rr();return}
+  if(a==='reset'){
+    if(!b.dataset.arm){b.dataset.arm=1;b.textContent='もう一度押すとサンプルに戻ります';return}
+    S=seed();assign();rr();
   }
-  return {
-    year, month,
-    ym: year + '-' + ('0' + month).slice(-2),
-    daysInMonth: new Date(year, month, 0).getDate(),
-  };
-}
-
-function promptCheckMonth_(tz) {
-  const now = new Date();
-  let y = Number(Utilities.formatDate(now, tz, 'yyyy'));
-  let m = Number(Utilities.formatDate(now, tz, 'M')) + 1;
-  if (m > 12) { m = 1; y++; }
-  const def = y + '/' + ('0' + m).slice(-2);
-
-  let input = def;
-  try {
-    const ui = SpreadsheetApp.getUi();
-    const res = ui.prompt(
-      'ルール違反チェック',
-      'チェックする年月を入力してください（例：' + def + '）\n※「シフト明細」シートの内容をチェックします（手修正も対象）。',
-      ui.ButtonSet.OK_CANCEL
-    );
-    if (res.getSelectedButton() !== ui.Button.OK) return null;
-    input = res.getResponseText().trim() || def;
-  } catch (e) {
-    console.log('ダイアログを表示できないため、既定値 ' + def + ' を使用します');
+});
+document.addEventListener('change',e=>{
+  const el=e.target;
+  if(el.id==='ym'){if(el.value){S.ym=el.value;save();render()}return}
+  if(el.dataset.rl){S.rules[el.dataset.rl]=el.checked;save();return}
+  const f=el.dataset.f;
+  if(el.dataset.t!==undefined){
+    const t=S.teachers[+el.dataset.t];
+    if(el.dataset.p!==undefined)t.pri[+el.dataset.p]=el.value;
+    else t[f]=el.type==='checkbox'?el.checked:el.type==='number'?(Number(el.value)||0):el.value;
+    S.result=null;save();
+  }else if(el.dataset.c!==undefined){
+    const c=S.clinics[+el.dataset.c];
+    if(el.dataset.r!==undefined)c.req[+el.dataset.r]=Number(el.value)||0;else c[f]=f==='min'?(Number(el.value)||0):el.value;
+    S.result=null;save();
   }
+});
 
-  const mt = input.match(/^(\d{4})[\/\-年](\d{1,2})月?$/);
-  if (!mt || Number(mt[2]) < 1 || Number(mt[2]) > 12) {
-    showAlert_('年月の形式が正しくありません（例：' + def + '）');
-    return null;
-  }
-  const year = Number(mt[1]);
-  const month = Number(mt[2]);
-  return {
-    year, month,
-    ym: year + '-' + ('0' + month).slice(-2),
-    daysInMonth: new Date(year, month, 0).getDate(),
-  };
-}
-
-// 対象月の日付情報（曜日・週キーはタイムゾーンに依存しないUTC計算）
-function buildDays_(target, tz) {
-  const days = [];
-  for (let d = 1; d <= target.daysInMonth; d++) {
-    const key = target.ym + '-' + ('0' + d).slice(-2);
-    const dow = (new Date(Date.UTC(target.year, target.month - 1, d)).getUTCDay() + 6) % 7; // 月=0〜日=6
-    const mon = new Date(Date.UTC(target.year, target.month - 1, d - dow));
-    const weekKey = mon.getUTCFullYear() + '-' + ('0' + (mon.getUTCMonth() + 1)).slice(-2) + '-' + ('0' + mon.getUTCDate()).slice(-2);
-    days.push({ key, dow, dowLabel: DOW_LABELS[dow], weekKey, dateObj: toDateObj_(key, tz) });
-  }
-  return days;
-}
-
-function toDateKey_(v, tz) {
-  if (v instanceof Date) return Utilities.formatDate(v, tz, 'yyyy-MM-dd');
-  if (v === '' || v == null) return '';
-  const m = String(v).trim().replace(/\//g, '-').match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-  if (!m) return '';
-  return m[1] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[3]).slice(-2);
-}
-
-function toDateObj_(key, tz) {
-  return Utilities.parseDate(key, tz, 'yyyy-MM-dd');
-}
-
-function timeStr_(v) {
-  const m = String(v == null ? '' : v).match(/(\d{1,2}):(\d{2})/);
-  return m ? ('0' + m[1]).slice(-2) + ':' + m[2] : '';
-}
-
-// 'HH:mm' → 分（変換できなければnull）
-function toMin_(s) {
-  const m = String(s || '').match(/^(\d{2}):(\d{2})$/);
-  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
-}
-
-// 日付キー('yyyy-MM-dd')を通し番号（日数）に変換
-function dayNum_(key) {
-  const p = key.split('-');
-  return Date.UTC(Number(p[0]), Number(p[1]) - 1, Number(p[2])) / 86400000;
-}
-
-// 日付キーをn日ずらす（タイムゾーンに依存しないUTC計算）
-function shiftKey_(key, delta) {
-  const p = key.split('-');
-  const d = new Date(Date.UTC(Number(p[0]), Number(p[1]) - 1, Number(p[2]) + delta));
-  return d.getUTCFullYear() + '-' + ('0' + (d.getUTCMonth() + 1)).slice(-2) + '-' + ('0' + d.getUTCDate()).slice(-2);
-}
-
-function str_(v) {
-  return v == null ? '' : String(v).trim();
-}
-
-function toNum_(v, def) {
-  if (v === '' || v == null) return def;
-  const n = Number(v);
-  return isNaN(n) ? def : n;
-}
-
-// 上限値：空欄または0 → 上限なし(null)
-function limit_(v) {
-  const n = toNum_(v, 0);
-  return n > 0 ? n : null;
-}
-
-function isYes_(s) {
-  return ['○', '〇', '◯', 'o', 'O', 'ok', 'OK', '可', 'はい', 'y', 'Y'].indexOf(str_(s)) >= 0;
-}
-
-function isNo_(s) {
-  return ['×', '✕', 'x', 'X', '不可', 'いいえ', 'n', 'N'].indexOf(str_(s)) >= 0;
-}
-
-function showAlert_(msg) {
-  try {
-    SpreadsheetApp.getUi().alert(msg);
-  } catch (e) {
-    console.log(msg);
-  }
-}
+S=load()||seed();norm();
+if(!S.result)assign();
+render();
+</script>
+</body>
+</html>
